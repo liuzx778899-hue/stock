@@ -409,22 +409,17 @@ class DataOrchestrator:
         # 计算均线
         df = self._calculate_ma(df)
 
-        # 计算技术指标（BOLL/MACD/RSI）
-        df = self._calc_indicators(df)
-
         # 转换为列表（倒序，最新在前）
         data = df.tail(limit).to_dict("records")
         # 将日期类型转为字符串（JSON 序列化兼容）
         for row in data:
             if "trade_date" in row and hasattr(row["trade_date"], "strftime"):
                 row["trade_date"] = row["trade_date"].strftime("%Y-%m-%d")
-            # nan 转 None（JSON 安全）
-            for k in ("pre_close", "pct_chg", "turnover_rate",
-                      "boll_mid", "boll_upper", "boll_lower",
-                      "macd_dif", "macd_dea", "macd_bar",
-                      "rsi6", "rsi12", "rsi24"):
-                if k in row and row[k] is not None and row[k] != row[k]:
-                    row[k] = None
+            # nan/inf 转 None（JSON 安全，Starlette 的 JSONResponse 使用 allow_nan=False）
+            for k, v in row.items():
+                if v is not None and isinstance(v, float):
+                    if v != v or v == float("inf") or v == float("-inf"):
+                        row[k] = None
 
         # 获取股票名称
         name = self._get_stock_name(symbol)
@@ -441,8 +436,12 @@ class DataOrchestrator:
         symbol = symbol.strip()
         if "." in symbol:
             return symbol
-        if symbol.startswith("6"):
+        if symbol.startswith('6'):
             return f"{symbol}.SH"
+        elif symbol.startswith(('0', '3')):
+            return f"{symbol}.SZ"
+        elif symbol.startswith(('4', '8', '92', '93')):
+            return f"{symbol}.BJ"
         return f"{symbol}.SZ"
 
     def _aggregate_kline(self, df: pd.DataFrame, period: str) -> pd.DataFrame:
@@ -476,42 +475,6 @@ class DataOrchestrator:
                 df[f"ma{p}"] = df["close"].rolling(window=p).mean().round(2)
             else:
                 df[f"ma{p}"] = None
-
-        return df
-
-    def _calc_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
-        """计算技术指标（BOLL/MACD/RSI）
-
-        Args:
-            df: K线数据 DataFrame（需含 close 列）
-
-        Returns:
-            添加指标列后的 DataFrame
-        """
-        close = df["close"].astype(float)
-
-        # BOLL（布林带）
-        df["boll_mid"] = close.rolling(20).mean().round(4)
-        std20 = close.rolling(20).std()
-        df["boll_upper"] = (df["boll_mid"] + 2 * std20).round(4)
-        df["boll_lower"] = (df["boll_mid"] - 2 * std20).round(4)
-
-        # MACD
-        ema12 = close.ewm(span=12, adjust=False).mean()
-        ema26 = close.ewm(span=26, adjust=False).mean()
-        df["macd_dif"] = (ema12 - ema26).round(4)
-        df["macd_dea"] = df["macd_dif"].ewm(span=9, adjust=False).mean().round(4)
-        df["macd_bar"] = (2 * (df["macd_dif"] - df["macd_dea"])).round(4)
-
-        # RSI（6/12/24）
-        delta = close.diff()
-        for n in [6, 12, 24]:
-            gain = delta.where(delta > 0, 0.0)
-            loss = (-delta).where(delta < 0, 0.0)
-            avg_gain = gain.rolling(n).mean()
-            avg_loss = loss.rolling(n).mean()
-            rs = avg_gain / avg_loss
-            df[f"rsi{n}"] = (100 - 100 / (1 + rs)).round(2)
 
         return df
 
