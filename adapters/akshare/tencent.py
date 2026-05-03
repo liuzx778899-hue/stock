@@ -58,6 +58,8 @@ class TencentProvider(DataProvider):
 
         优先使用 stock_zh_a_hist_tx，不存在则降级到通用接口
         """
+        from services.field_merger import FieldMerger
+
         try:
             if hasattr(ak, 'stock_zh_a_hist_tx'):
                 df = ak.stock_zh_a_hist_tx(
@@ -66,7 +68,7 @@ class TencentProvider(DataProvider):
                     end_date=end_date,
                     adjust=adjust
                 )
-                return df
+                return FieldMerger.normalize_columns(df)
         except Exception:
             pass
 
@@ -78,7 +80,7 @@ class TencentProvider(DataProvider):
             end_date=end_date,
             adjust=adjust
         )
-        return df
+        return FieldMerger.normalize_columns(df)
 
     def fetch_realtime(self, symbol: Optional[str] = None) -> pd.DataFrame:
         """腾讯不提供实时行情接口"""

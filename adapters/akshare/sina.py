@@ -66,6 +66,8 @@ class SinaProvider(DataProvider):
 
         优先使用 stock_zh_a_daily，不存在则降级到 stock_zh_a_hist
         """
+        from services.field_merger import FieldMerger
+
         try:
             if hasattr(ak, 'stock_zh_a_daily'):
                 df = ak.stock_zh_a_daily(
@@ -74,7 +76,7 @@ class SinaProvider(DataProvider):
                     end_date=end_date,
                     adjust=adjust
                 )
-                return df
+                return FieldMerger.normalize_columns(df)
         except Exception:
             pass
 
@@ -86,7 +88,7 @@ class SinaProvider(DataProvider):
             end_date=end_date,
             adjust=adjust
         )
-        return df
+        return FieldMerger.normalize_columns(df)
 
     def fetch_realtime(self, symbol: Optional[str] = None) -> pd.DataFrame:
         """获取实时行情"""
