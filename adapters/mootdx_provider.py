@@ -169,13 +169,22 @@ class TdxProvider(DataProvider):
         if not hyfx:
             return None
 
-        # 匹配: ----行业名称--行业名称(N) 或 ----xxx--xxx(N)
-        pattern = r'--+([^-]+)--\S*\(\d+\)'
+        # 匹配: ----行业名称--行业名称(N)
+        # 使用反向引用确保两个行业名称相同
+        pattern = r'--+([^-]+)--+\1\(\d+\)'
         match = re.search(pattern, hyfx)
         if match:
             industry = match.group(1).strip()
             # 清理可能的乱码/后缀
-            industry = re.sub(r'[ⅠⅡⅢⅡⅢ]+$', '', industry).strip()
+            industry = re.sub(r'[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+$', '', industry).strip()
+            return industry if industry else None
+
+        # 备用正则（宽松匹配）
+        pattern2 = r'--+([^-]+)--\S*\(\d+\)'
+        match2 = re.search(pattern2, hyfx)
+        if match2:
+            industry = match2.group(1).strip()
+            industry = re.sub(r'[ⅠⅡⅢⅣⅤⅥⅦⅧⅨⅩ]+$', '', industry).strip()
             return industry if industry else None
         return None
 
@@ -307,10 +316,71 @@ class TdxProvider(DataProvider):
         logger.info(f"[mootdx] F10 查询完成: 成功 {success}，失败 {failed}")
         return results
 
+    # ---- 北交所后备方案（技术方案 3.2）----
+
+    def _fetch_bse_mapping(self) -> tuple[Dict[str, str], Dict[str, str]]:
+        """从 AkShare 获取北交所行业和地区映射
+
+        mootdx F10 不支持北交所代码（8/92xxxx），使用 AkShare BSE API 作为后备。
+        该接口调用东方财富 BSE 专用端点，未被代理拦截。
+
+        Returns:
+            (industry_mapping, area_mapping) 两个字典
+        """
+        try:
+            import akshare as ak
+            df = ak.stock_info_bj_name_code()
+
+            industry_map = {}
+            area_map = {}
+
+            for _, row in df.iterrows():
+                code = str(row.get('证券代码', row.get('代码', ''))).zfill(6)
+                industry = str(row.get('所属行业', row.get('行业', '')))
+                # 省份可能在不同列名下
+                area = str(row.get('省份', row.get('地区', '')))
+
+                if code:
+                    if industry and industry != 'nan':
+                        industry_map[code] = industry
+                    if area and area != 'nan':
+                        area_map[code] = area
+
+            logger.info(f"[mootdx] BSE API 获取: 行业 {len(industry_map)} 条, 地区 {len(area_map)} 条")
+            return industry_map, area_map
+        except Exception as e:
+            logger.warning(f"[mootdx] BSE API 获取失败: {e}")
+            return {}, {}
+
+    def _is_bse_symbol(self, symbol: str) -> bool:
+        """判断是否为北交所代码
+
+        北交所代码前缀: 83, 87, 92, 93 (以8或9开头的特定前缀)
+        """
+        if not symbol:
+            return False
+        code = symbol.zfill(6)
+        return code.startswith(('83', '87', '92', '93', '8'))
+
+    def _is_hs_symbol(self, symbol: str) -> bool:
+        """判断是否为沪深代码
+
+        沪深代码前缀: 60, 00, 30, 68 (上证、深证、创业板、科创板)
+        """
+        if not symbol:
+            return False
+        code = symbol.zfill(6)
+        return code.startswith(('60', '00', '30', '68'))
+
     # ---- DataProvider 接口实现 ----
 
     def fetch_industry_mapping(self) -> Dict[str, str]:
-        """返回 {symbol: industry_name} 映射"""
+        """返回 {symbol: industry_name} 映射
+
+        内部自动分流：
+        - 沪深代码 → mootdx F10 (TCP)
+        - 北交所代码 → AkShare BSE API (HTTP)
+        """
         cache = self._load_cache()
         cached_industry = cache.get("industry", {})
 
@@ -318,8 +388,7 @@ class TdxProvider(DataProvider):
         if cached_industry and cache.get("updated_at"):
             return cached_industry
 
-        # 获取股票列表（从 stock_basic 表或调用方传入）
-        # 这里只获取缓存中不存在的股票
+        # 获取股票列表（从 stock_basic 表）
         from models import Session, StockBasic
         try:
             with Session() as session:
@@ -337,27 +406,45 @@ class TdxProvider(DataProvider):
 
         logger.info(f"[mootdx] 需获取 {len(need_fetch)} 只股票的行业信息...")
 
-        # 批量 F10 查询
-        f10_data = self._batch_fetch_f10(need_fetch)
+        # 分流：沪深 vs 北交所
+        hs_symbols = [s for s in need_fetch if self._is_hs_symbol(s)]
+        bse_symbols = [s for s in need_fetch if self._is_bse_symbol(s)]
 
-        # 解析行业
         new_industry = {}
-        for symbol, data in f10_data.items():
-            industry = self._parse_industry(data)
-            if industry:
-                new_industry[symbol] = industry
+
+        # 沪深股票：mootdx F10
+        if hs_symbols:
+            logger.info(f"[mootdx] 沪深股票 {len(hs_symbols)} 只，使用 F10 查询...")
+            f10_data = self._batch_fetch_f10(hs_symbols)
+            for symbol, data in f10_data.items():
+                industry = self._parse_industry(data)
+                if industry:
+                    new_industry[symbol] = industry
+
+        # 北交所股票：AkShare BSE API
+        if bse_symbols:
+            logger.info(f"[mootdx] 北交所股票 {len(bse_symbols)} 只，使用 BSE API 查询...")
+            bse_industry, _ = self._fetch_bse_mapping()
+            for symbol in bse_symbols:
+                if symbol in bse_industry:
+                    new_industry[symbol] = bse_industry[symbol]
 
         # 合并缓存
         self._cache_data["industry"] = {**cached_industry, **new_industry}
         self._save_cache()
 
-        coverage = len(self._cache_data["industry"]) / len(all_symbols) * 100
+        coverage = len(self._cache_data["industry"]) / len(all_symbols) * 100 if all_symbols else 0
         logger.info(f"[mootdx] 行业覆盖率: {coverage:.1f}% ({len(self._cache_data['industry'])}/{len(all_symbols)})")
 
         return self._cache_data["industry"]
 
     def fetch_area_mapping(self) -> Dict[str, str]:
-        """返回 {symbol: area_name} 映射"""
+        """返回 {symbol: area_name} 映射
+
+        内部自动分流：
+        - 沪深代码 → mootdx F10 (TCP)
+        - 北交所代码 → AkShare BSE API (HTTP)
+        """
         cache = self._load_cache()
         cached_area = cache.get("area", {})
 
@@ -383,21 +470,34 @@ class TdxProvider(DataProvider):
 
         logger.info(f"[mootdx] 需获取 {len(need_fetch)} 只股票的地区信息...")
 
-        # 批量 F10 查询（复用行业查询的缓存数据）
-        f10_data = self._batch_fetch_f10(need_fetch)
+        # 分流：沪深 vs 北交所
+        hs_symbols = [s for s in need_fetch if self._is_hs_symbol(s)]
+        bse_symbols = [s for s in need_fetch if self._is_bse_symbol(s)]
 
-        # 解析地区
         new_area = {}
-        for symbol, data in f10_data.items():
-            area = self._parse_area(data)
-            if area:
-                new_area[symbol] = area
+
+        # 沪深股票：mootdx F10
+        if hs_symbols:
+            logger.info(f"[mootdx] 沪深股票 {len(hs_symbols)} 只，使用 F10 查询...")
+            f10_data = self._batch_fetch_f10(hs_symbols)
+            for symbol, data in f10_data.items():
+                area = self._parse_area(data)
+                if area:
+                    new_area[symbol] = area
+
+        # 北交所股票：AkShare BSE API
+        if bse_symbols:
+            logger.info(f"[mootdx] 北交所股票 {len(bse_symbols)} 只，使用 BSE API 查询...")
+            _, bse_area = self._fetch_bse_mapping()
+            for symbol in bse_symbols:
+                if symbol in bse_area:
+                    new_area[symbol] = bse_area[symbol]
 
         # 合并缓存
         self._cache_data["area"] = {**cached_area, **new_area}
         self._save_cache()
 
-        coverage = len(self._cache_data["area"]) / len(all_symbols) * 100
+        coverage = len(self._cache_data["area"]) / len(all_symbols) * 100 if all_symbols else 0
         logger.info(f"[mootdx] 地区覆盖率: {coverage:.1f}% ({len(self._cache_data['area'])}/{len(all_symbols)})")
 
         return self._cache_data["area"]
