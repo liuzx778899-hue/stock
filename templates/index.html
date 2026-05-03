@@ -2289,8 +2289,8 @@
 
         function renderKlineChart(data) {
             const chartDom = document.getElementById('kline-chart');
-            // 确保容器有宽高
-            chartDom.style.height = '500px';
+            // 四面板布局需要更大高度
+            chartDom.style.height = '600px';
 
             if (klineChartInstance) {
                 klineChartInstance.dispose();
@@ -2302,17 +2302,27 @@
             const dates = sortedData.map(d => d.trade_date);
             const ohlcData = sortedData.map(d => [d.open, d.close, d.low, d.high]);
             const volumeData = sortedData.map(d => d.volume);
-            const amounts = sortedData.map(d => d.amount || 0);
 
             // 成交量颜色：涨红色，跌绿色
             const volColors = sortedData.map(d => d.close >= d.open ? '#e74c3c' : '#2ecc71');
 
-            // 计算 MA 数据
+            // 收盘价序列
             const closes = sortedData.map(d => d.close);
+
+            // 计算 MA 数据
             const ma5 = calculateMA(5, closes);
             const ma10 = calculateMA(10, closes);
             const ma20 = calculateMA(20, closes);
             const ma60 = calculateMA(60, closes);
+
+            // 计算 BOLL 数据
+            const boll = calculateBOLL(closes);
+
+            // 计算 MACD 数据
+            const macd = calculateMACD(closes);
+
+            // 计算 RSI 数据
+            const rsi = calculateRSI(closes);
 
             const option = {
                 animation: false,
@@ -2325,128 +2335,153 @@
                     textStyle: { color: '#333', fontSize: 12 },
                     formatter: function(params) {
                         const date = params[0].axisValue;
-                        let ohlc = params.find(p => p.seriesName === 'K线');
-                        let vol = params.find(p => p.seriesName === '成交量');
+                        const idx = dates.indexOf(date);
+                        const d = sortedData[idx] || {};
                         let html = `<strong>${date}</strong><br/>`;
-                        if (ohlc) {
-                            const d = sortedData.find(x => x.trade_date === date) || {};
-                            html += `开盘: ${d.open?.toFixed(2) || '-'}<br/>`;
-                            html += `收盘: ${d.close?.toFixed(2) || '-'}<br/>`;
-                            html += `最高: ${d.high?.toFixed(2) || '-'}<br/>`;
-                            html += `最低: ${d.low?.toFixed(2) || '-'}<br/>`;
-                            if (d.pct_chg !== undefined) {
-                                const pct = d.pct_chg;
-                                const cls = pct >= 0 ? 'up' : 'down';
-                                html += `涨幅: <span style="color:${pct >= 0 ? '#e74c3c' : '#2ecc71'}">${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%</span><br/>`;
-                            }
+                        html += `开: ${d.open?.toFixed(2) || '-'} `;
+                        html += `高: ${d.high?.toFixed(2) || '-'} `;
+                        html += `低: ${d.low?.toFixed(2) || '-'} `;
+                        html += `收: ${d.close?.toFixed(2) || '-'}<br/>`;
+                        if (d.pct_chg !== undefined) {
+                            html += `涨跌: <span style="color:${d.pct_chg >= 0 ? '#e74c3c' : '#2ecc71'}">${d.pct_chg >= 0 ? '+' : ''}${d.pct_chg.toFixed(2)}%</span> `;
                         }
-                        if (vol) {
-                            html += `成交量: ${(vol.value / 10000).toFixed(0)}万<br/>`;
+                        html += `量: ${((d.volume || 0) / 10000).toFixed(0)}万<br/>`;
+                        // BOLL
+                        if (boll.mid[idx] !== '-') {
+                            html += `BOLL: 上${boll.upper[idx]} 中${boll.mid[idx]} 下${boll.lower[idx]}<br/>`;
+                        }
+                        // MACD
+                        if (macd.dif[idx] !== '-') {
+                            html += `MACD: DIF${macd.dif[idx]} DEA${macd.dea[idx]} BAR${macd.bar[idx]}<br/>`;
+                        }
+                        // RSI
+                        if (rsi.rsi6[idx] !== '-') {
+                            html += `RSI: RSI6=${rsi.rsi6[idx]} RSI12=${rsi.rsi12[idx]} RSI24=${rsi.rsi24[idx]}`;
                         }
                         return html;
                     }
                 },
+                legend: {
+                    data: ['K线', 'MA5', 'MA10', 'MA20', 'MA60', 'BOLL上', 'BOLL中', 'BOLL下', '成交量', 'DIF', 'DEA', 'MACD柱', 'RSI6', 'RSI12', 'RSI24'],
+                    top: 0,
+                    textStyle: { fontSize: 10 },
+                    selected: {
+                        'BOLL上': true, 'BOLL中': true, 'BOLL下': true,
+                        'MA5': true, 'MA10': true, 'MA20': true, 'MA60': true
+                    }
+                },
+                // 四面板布局
                 grid: [
-                    { left: '8%', right: '8%', top: '8%', height: '55%' },
-                    { left: '8%', right: '8%', top: '70%', height: '18%' }
+                    { left: '8%', right: '3%', top: '8%', height: '35%' },    // 主图: K线+BOLL+MA
+                    { left: '8%', right: '3%', top: '48%', height: '12%' },   // 副图1: VOL
+                    { left: '8%', right: '3%', top: '64%', height: '12%' },   // 副图2: MACD
+                    { left: '8%', right: '3%', top: '80%', height: '12%' }    // 副图3: RSI
                 ],
                 xAxis: [
-                    {
-                        type: 'category',
-                        data: dates,
-                        gridIndex: 0,
-                        axisLine: { onZero: false },
-                        axisLabel: { show: false },
-                        axisTick: { show: false },
-                        splitLine: { show: false }
-                    },
-                    {
-                        type: 'category',
-                        data: dates,
-                        gridIndex: 1,
-                        axisLabel: { rotate: 45, fontSize: 10 },
-                        axisLine: { onZero: false },
-                        axisTick: { show: false },
-                        splitLine: { show: false }
-                    }
+                    // 主图 xAxis
+                    { type: 'category', data: dates, gridIndex: 0, axisLabel: { show: false }, axisTick: { show: false }, splitLine: { show: false } },
+                    // VOL xAxis
+                    { type: 'category', data: dates, gridIndex: 1, axisLabel: { show: false }, axisTick: { show: false }, splitLine: { show: false } },
+                    // MACD xAxis
+                    { type: 'category', data: dates, gridIndex: 2, axisLabel: { show: false }, axisTick: { show: false }, splitLine: { show: false } },
+                    // RSI xAxis
+                    { type: 'category', data: dates, gridIndex: 3, axisLabel: { rotate: 45, fontSize: 9 }, axisTick: { show: false }, splitLine: { show: false } }
                 ],
                 yAxis: [
-                    {
-                        scale: true,
-                        gridIndex: 0,
-                        splitArea: { show: true, areaStyle: { color: ['rgba(250,250,250,0.3)', 'rgba(200,200,200,0.1)'] } },
-                        axisLabel: { fontSize: 10 }
-                    },
-                    {
-                        scale: true,
-                        gridIndex: 1,
-                        splitNumber: 2,
-                        axisLabel: { show: true, fontSize: 10, formatter: v => v >= 10000 ? (v / 10000).toFixed(0) + '万' : v }
-                    }
+                    // 主图 yAxis
+                    { scale: true, gridIndex: 0, splitArea: { show: true, areaStyle: { color: ['rgba(250,250,250,0.3)', 'rgba(200,200,200,0.1)'] } }, axisLabel: { fontSize: 9 } },
+                    // VOL yAxis
+                    { scale: true, gridIndex: 1, splitNumber: 2, axisLabel: { fontSize: 9, formatter: v => v >= 10000 ? (v/10000).toFixed(0)+'万' : v } },
+                    // MACD yAxis
+                    { scale: true, gridIndex: 2, splitNumber: 2, axisLabel: { fontSize: 9 } },
+                    // RSI yAxis
+                    { scale: true, gridIndex: 3, min: 0, max: 100, splitNumber: 2, axisLabel: { fontSize: 9 } }
                 ],
                 dataZoom: [
-                    { type: 'inside', xAxisIndex: [0, 1], start: Math.max(0, 100 - 60), end: 100 },
-                    { type: 'slider', xAxisIndex: [0, 1], start: Math.max(0, 100 - 60), end: 100, height: 16, bottom: 2, borderColor: '#ddd', fillerColor: 'rgba(102,126,234,0.2)' }
+                    { type: 'inside', xAxisIndex: [0, 1, 2, 3], start: Math.max(0, 100 - 60), end: 100 },
+                    { type: 'slider', xAxisIndex: [0, 1, 2, 3], start: Math.max(0, 100 - 60), end: 100, height: 20, bottom: 0, borderColor: '#ddd', fillerColor: 'rgba(102,126,234,0.2)' }
                 ],
                 series: [
+                    // ===== 主图: K线 + MA + BOLL =====
                     {
                         name: 'K线',
                         type: 'candlestick',
-                        xAxisIndex: 0,
-                        yAxisIndex: 0,
+                        xAxisIndex: 0, yAxisIndex: 0,
                         data: ohlcData,
                         itemStyle: { color: '#e74c3c', color0: '#2ecc71', borderColor: '#e74c3c', borderColor0: '#2ecc71' }
                     },
                     {
-                        name: 'MA5',
-                        type: 'line',
-                        xAxisIndex: 0,
-                        yAxisIndex: 0,
-                        data: ma5,
-                        smooth: true,
-                        symbol: 'none',
-                        lineStyle: { width: 1, color: '#f7b731' }
+                        name: 'MA5', type: 'line', xAxisIndex: 0, yAxisIndex: 0,
+                        data: ma5, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#f7b731' }
                     },
                     {
-                        name: 'MA10',
-                        type: 'line',
-                        xAxisIndex: 0,
-                        yAxisIndex: 0,
-                        data: ma10,
-                        smooth: true,
-                        symbol: 'none',
-                        lineStyle: { width: 1, color: '#45aaf2' }
+                        name: 'MA10', type: 'line', xAxisIndex: 0, yAxisIndex: 0,
+                        data: ma10, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#45aaf2' }
                     },
                     {
-                        name: 'MA20',
-                        type: 'line',
-                        xAxisIndex: 0,
-                        yAxisIndex: 0,
-                        data: ma20,
-                        smooth: true,
-                        symbol: 'none',
-                        lineStyle: { width: 1, color: '#a55eea' }
+                        name: 'MA20', type: 'line', xAxisIndex: 0, yAxisIndex: 0,
+                        data: ma20, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#a55eea' }
                     },
                     {
-                        name: 'MA60',
-                        type: 'line',
-                        xAxisIndex: 0,
-                        yAxisIndex: 0,
-                        data: ma60,
-                        smooth: true,
-                        symbol: 'none',
-                        lineStyle: { width: 1, color: '#26de81' }
+                        name: 'MA60', type: 'line', xAxisIndex: 0, yAxisIndex: 0,
+                        data: ma60, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#26de81' }
                     },
                     {
-                        name: '成交量',
-                        type: 'bar',
-                        xAxisIndex: 1,
-                        yAxisIndex: 1,
-                        data: volumeData.map((v, i) => ({
+                        name: 'BOLL上', type: 'line', xAxisIndex: 0, yAxisIndex: 0,
+                        data: boll.upper, smooth: true, symbol: 'none', lineStyle: { width: 1, color: 'rgba(255,107,107,0.6)', type: 'dashed' }
+                    },
+                    {
+                        name: 'BOLL中', type: 'line', xAxisIndex: 0, yAxisIndex: 0,
+                        data: boll.mid, smooth: true, symbol: 'none', lineStyle: { width: 1, color: 'rgba(255,107,107,0.8)' }
+                    },
+                    {
+                        name: 'BOLL下', type: 'line', xAxisIndex: 0, yAxisIndex: 0,
+                        data: boll.lower, smooth: true, symbol: 'none', lineStyle: { width: 1, color: 'rgba(255,107,107,0.6)', type: 'dashed' }
+                    },
+                    // ===== 副图1: 成交量 =====
+                    {
+                        name: '成交量', type: 'bar', xAxisIndex: 1, yAxisIndex: 1,
+                        data: volumeData.map((v, i) => ({ value: v, itemStyle: { color: volColors[i] } })),
+                        barMaxWidth: 6
+                    },
+                    // ===== 副图2: MACD =====
+                    {
+                        name: 'MACD柱', type: 'bar', xAxisIndex: 2, yAxisIndex: 2,
+                        data: macd.bar.map((v, i) => ({
                             value: v,
-                            itemStyle: { color: volColors[i] }
+                            itemStyle: { color: v >= 0 ? '#e74c3c' : '#2ecc71' }
                         })),
-                        barMaxWidth: 8
+                        barMaxWidth: 4
+                    },
+                    {
+                        name: 'DIF', type: 'line', xAxisIndex: 2, yAxisIndex: 2,
+                        data: macd.dif, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#fff' }
+                    },
+                    {
+                        name: 'DEA', type: 'line', xAxisIndex: 2, yAxisIndex: 2,
+                        data: macd.dea, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#f7b731' }
+                    },
+                    // ===== 副图3: RSI =====
+                    {
+                        name: 'RSI6', type: 'line', xAxisIndex: 3, yAxisIndex: 3,
+                        data: rsi.rsi6, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#fff' }
+                    },
+                    {
+                        name: 'RSI12', type: 'line', xAxisIndex: 3, yAxisIndex: 3,
+                        data: rsi.rsi12, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#f7b731' }
+                    },
+                    {
+                        name: 'RSI24', type: 'line', xAxisIndex: 3, yAxisIndex: 3,
+                        data: rsi.rsi24, smooth: true, symbol: 'none', lineStyle: { width: 1, color: '#a55eea' }
+                    },
+                    // RSI 参考线
+                    {
+                        name: '超买70', type: 'line', xAxisIndex: 3, yAxisIndex: 3,
+                        data: Array(dates.length).fill(70), symbol: 'none', lineStyle: { type: 'dashed', color: '#e74c3c', width: 1 }
+                    },
+                    {
+                        name: '超卖30', type: 'line', xAxisIndex: 3, yAxisIndex: 3,
+                        data: Array(dates.length).fill(30), symbol: 'none', lineStyle: { type: 'dashed', color: '#2ecc71', width: 1 }
                     }
                 ]
             };
@@ -2467,6 +2502,8 @@
             });
         }
 
+        // ===== 技术指标计算函数 =====
+
         function calculateMA(dayCount, data) {
             const result = [];
             for (let i = 0; i < data.length; i++) {
@@ -2478,6 +2515,106 @@
                         sum += data[j];
                     }
                     result.push(parseFloat((sum / dayCount).toFixed(2)));
+                }
+            }
+            return result;
+        }
+
+        function calculateBOLL(closes, n = 20, k = 2) {
+            const mid = [], upper = [], lower = [];
+            for (let i = 0; i < closes.length; i++) {
+                if (i < n - 1) {
+                    mid.push('-');
+                    upper.push('-');
+                    lower.push('-');
+                } else {
+                    // 计算均值
+                    let sum = 0;
+                    for (let j = i - n + 1; j <= i; j++) {
+                        sum += closes[j];
+                    }
+                    const ma = sum / n;
+                    // 计算标准差
+                    let sumSq = 0;
+                    for (let j = i - n + 1; j <= i; j++) {
+                        sumSq += Math.pow(closes[j] - ma, 2);
+                    }
+                    const std = Math.sqrt(sumSq / n);
+                    mid.push(parseFloat(ma.toFixed(2)));
+                    upper.push(parseFloat((ma + k * std).toFixed(2)));
+                    lower.push(parseFloat((ma - k * std).toFixed(2)));
+                }
+            }
+            return { mid, upper, lower };
+        }
+
+        function calculateMACD(closes, short = 12, long = 26, signal = 9) {
+            const emaShort = calculateEMA(closes, short);
+            const emaLong = calculateEMA(closes, long);
+            const dif = emaShort.map((v, i) => {
+                if (v === '-' || emaLong[i] === '-') return '-';
+                return parseFloat((v - emaLong[i]).toFixed(3));
+            });
+            // 将 dif 转为数值用于计算 DEA
+            const difNums = dif.map(v => v === '-' ? 0 : v);
+            const dea = calculateEMA(difNums, signal);
+            const bar = dif.map((v, i) => {
+                if (v === '-' || dea[i] === '-') return '-';
+                return parseFloat((2 * (v - dea[i])).toFixed(3));
+            });
+            return { dif, dea, bar };
+        }
+
+        function calculateEMA(data, period) {
+            const result = [];
+            const k = 2 / (period + 1);
+            let ema = data[0];
+            result.push(parseFloat(ema.toFixed(3)));
+            for (let i = 1; i < data.length; i++) {
+                ema = data[i] * k + ema * (1 - k);
+                result.push(parseFloat(ema.toFixed(3)));
+            }
+            return result;
+        }
+
+        function calculateRSI(closes) {
+            const rsi6 = calculateRSIValue(closes, 6);
+            const rsi12 = calculateRSIValue(closes, 12);
+            const rsi24 = calculateRSIValue(closes, 24);
+            return { rsi6, rsi12, rsi24 };
+        }
+
+        function calculateRSIValue(closes, period) {
+            const result = [];
+            let gains = [], losses = [];
+            for (let i = 0; i < closes.length; i++) {
+                if (i === 0) {
+                    result.push('-');
+                    gains.push(0);
+                    losses.push(0);
+                } else {
+                    const change = closes[i] - closes[i - 1];
+                    gains.push(change > 0 ? change : 0);
+                    losses.push(change < 0 ? Math.abs(change) : 0);
+
+                    if (i < period) {
+                        result.push('-');
+                    } else {
+                        // 计算 period 日内的平均涨跌
+                        let sumGain = 0, sumLoss = 0;
+                        for (let j = i - period + 1; j <= i; j++) {
+                            sumGain += gains[j];
+                            sumLoss += losses[j];
+                        }
+                        const avgGain = sumGain / period;
+                        const avgLoss = sumLoss / period;
+                        if (avgLoss === 0) {
+                            result.push(100);
+                        } else {
+                            const rs = avgGain / avgLoss;
+                            result.push(parseFloat((100 - 100 / (1 + rs)).toFixed(1)));
+                        }
+                    }
                 }
             }
             return result;
