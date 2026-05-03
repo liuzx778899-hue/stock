@@ -161,9 +161,27 @@ class StockBasicCollector(BaseCollector):
             df['list_status'] = 'L'
 
         if 'market' not in df.columns:
-            df['market'] = df['ts_code'].apply(lambda x: x.split('.')[-1] if '.' in x else 'SZ')
+            df['market'] = df['symbol'].apply(self._classify_market)
 
         return df
+
+    @staticmethod
+    def _classify_market(symbol: str) -> str:
+        """根据股票代码分类市场"""
+        symbol = str(symbol).strip() if symbol else ''
+        if symbol.startswith(('688', '689')):
+            return '科创板'
+        elif symbol.startswith(('300', '301')):
+            return '创业板'
+        elif symbol.startswith(('60', '900')):
+            return '上海主板'
+        elif symbol.startswith(('000', '001', '002', '003')):
+            return '深圳主板'
+        elif symbol.startswith(('4', '8', '92', '93')):
+            return '北交所'
+        elif symbol.startswith('200'):
+            return '深圳主板'  # B股
+        return '其他'
 
     def _build_ts_code(self, symbol: str) -> str:
         """构建 ts_code 格式"""
