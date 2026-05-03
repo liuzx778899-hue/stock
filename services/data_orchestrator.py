@@ -41,8 +41,8 @@ class DataOrchestrator:
             provider = self.registry.get_provider(forced)
             if provider and provider.enabled and provider.supports(category):
                 return [provider]
-            logger.warning(f"强制数据源 {forced} 不支持 {category.value}")
-            return []
+            # 强制 Provider 不支持当前类别时回退到自动选择
+            logger.warning(f"强制数据源 {forced} 不支持 {category.value}，回退到自动选择")
         return self.registry.get_providers_for(category)
 
     def collect_stock_basic(
