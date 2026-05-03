@@ -6,7 +6,7 @@ import asyncio
 import threading
 import importlib
 from datetime import datetime, time
-from typing import List, Optional, Dict
+from typing import Any, List, Optional, Dict
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -549,6 +549,34 @@ async def get_quality_history(category: Optional[str] = None, limit: int = 20):
         service = QualityService(session)
         history = service.get_history(category, limit)
         return {"history": history}
+    finally:
+        session.close()
+
+
+@app.get("/api/quality/trend")
+async def get_quality_trend(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    category: Optional[str] = None
+):
+    """获取质量趋势数据
+
+    Args:
+        start_date: 起始日期 YYYY-MM-DD（默认 30 天前）
+        end_date: 结束日期 YYYY-MM-DD（默认今天）
+        category: 可选，指定数据类别
+    """
+    from sqlalchemy.orm import Session
+    from services.data_quality import QualityService
+    from config import config
+
+    from sqlalchemy import create_engine
+    engine = create_engine(config.database.connection_url)
+    session = Session(bind=engine)
+    try:
+        service = QualityService(session)
+        trend = service.get_trend(start_date, end_date, category)
+        return trend
     finally:
         session.close()
 
