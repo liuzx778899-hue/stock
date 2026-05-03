@@ -669,6 +669,9 @@
             document.getElementById('page-' + pageName).classList.add('active');
             document.querySelector(`.nav-item[data-page="${pageName}"]`).classList.add('active');
 
+            // 保存当前页面到 localStorage，刷新后恢复 (BUG-107)
+            localStorage.setItem('currentPage', pageName);
+
             // 切换到股票列表页面时加载数据
             if (pageName === 'stocks') {
                 // 销毁K线图表实例
@@ -2338,6 +2341,11 @@
         }
 
         // 初始化
+        // 恢复上次浏览的页面 (BUG-107)
+        const lastPage = localStorage.getItem('currentPage');
+        if (lastPage && document.getElementById('page-' + lastPage)) {
+            showPage(lastPage);
+        }
         loadLogs();  // 清空日志显示框
         initWebSocket();
         refreshStatus();
