@@ -6,7 +6,7 @@
 - FreshnessChecker: 新鲜度（数据滞后天数）
 - AnomalyDetector: 异常检测（价格/涨跌幅/成交量异常）
 """
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from decimal import Decimal
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, field
@@ -470,3 +470,75 @@ class QualityService:
             }
             for r in reports
         ]
+
+    def get_trend(
+        self,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        category: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """获取质量趋势数据
+
+        Args:
+            start_date: 起始日期 YYYY-MM-DD（默认 30 天前）
+            end_date: 结束日期 YYYY-MM-DD（默认今天）
+            category: 可选，指定数据类别
+
+        Returns:
+            {
+                "start_date": "2026-04-01",
+                "end_date": "2026-05-04",
+                "trend": {
+                    "stock_basic": [{check_time, total_score, completeness, freshness, anomaly}, ...],
+                    "kline_daily": [...],
+                    "realtime_quote": [...]
+                }
+            }
+        """
+        from sqlalchemy import cast, DATE, func
+
+        # 默认时间范围：最近 30 天
+        if not end_date:
+            end_date = date.today().isoformat()
+        if not start_date:
+            start_date = (date.today() - timedelta(days=30)).isoformat()
+
+        trend_data = {}
+        categories_to_check = [category] if category else self.CATEGORIES
+
+        for cat in categories_to_check:
+            # 查询时间范围内的所有报告，按日期分组取每天最新
+            query = self.session.query(DataQualityReport) \
+                .filter(DataQualityReport.data_category == cat) \
+                .filter(cast(DataQualityReport.check_time, DATE) >= start_date) \
+                .filter(cast(DataQualityReport.check_time, DATE) <= end_date) \
+                .order_by(DataQualityReport.check_time.asc())
+
+            reports = query.all()
+
+            # 按日期分组，每天取最新一条
+            daily_reports = {}
+            for r in reports:
+                day_key = r.check_time.strftime('%Y-%m-%d') if isinstance(r.check_time, datetime) else str(r.check_time)[:10]
+                if day_key not in daily_reports or r.check_time > daily_reports[day_key].check_time:
+                    daily_reports[day_key] = r
+
+            # 转换为列表格式
+            trend_list = []
+            for day_key in sorted(daily_reports.keys()):
+                r = daily_reports[day_key]
+                trend_list.append({
+                    'check_time': day_key,
+                    'total_score': float(r.total_score),
+                    'completeness': float(r.completeness_score),
+                    'freshness': float(r.freshness_score),
+                    'anomaly': float(r.anomaly_score)
+                })
+
+            trend_data[cat] = trend_list
+
+        return {
+            'start_date': start_date,
+            'end_date': end_date,
+            'trend': trend_data
+        }
