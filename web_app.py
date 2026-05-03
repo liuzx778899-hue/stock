@@ -432,7 +432,8 @@ async def get_quality_report(category: Optional[str] = None):
     from services.data_quality import QualityService
     from config import config
 
-    engine = config.get_engine()
+    from sqlalchemy import create_engine
+    engine = create_engine(config.database.connection_url)
     session = Session(bind=engine)
     try:
         service = QualityService(session)
@@ -449,10 +450,11 @@ async def get_quality_report(category: Optional[str] = None):
 async def trigger_quality_check():
     """触发全量质量检查"""
     from sqlalchemy.orm import Session
+    from sqlalchemy import create_engine
     from services.data_quality import QualityService
     from config import config
 
-    engine = config.get_engine()
+    engine = create_engine(config.database.connection_url)
     session = Session(bind=engine)
     try:
         service = QualityService(session)
@@ -481,7 +483,8 @@ async def get_quality_history(category: Optional[str] = None, limit: int = 20):
     from services.data_quality import QualityService
     from config import config
 
-    engine = config.get_engine()
+    from sqlalchemy import create_engine
+    engine = create_engine(config.database.connection_url)
     session = Session(bind=engine)
     try:
         service = QualityService(session)
@@ -500,7 +503,8 @@ async def trigger_quality_check_after_collect():
     from config import config
 
     try:
-        engine = config.get_engine()
+        from sqlalchemy import create_engine
+        engine = create_engine(config.database.connection_url)
         session = Session(bind=engine)
         try:
             service = QualityService(session)
@@ -1018,6 +1022,9 @@ def _make_basic_progress_callback(loop):
             raise TaskStoppedException("用户请求停止任务")
 
         percent = round(current * 100 / total, 1) if total > 0 else 0
+        # 同步更新 task_status，确保 REST API 也能获取进度
+        task_status["progress"] = current
+        task_status["total"] = total
         asyncio.run_coroutine_threadsafe(
             manager.broadcast({
                 "type": "progress",

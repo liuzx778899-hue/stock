@@ -150,11 +150,11 @@ class FreshnessChecker:
                     'is_trading_day_aligned': False
                 }
 
-            # 计算滞后天数
-            if isinstance(latest_data_date, date):
-                days_lag = (date.today() - latest_data_date).days
-            elif isinstance(latest_data_date, datetime):
+            # 计算滞后天数（注意: datetime 是 date 的子类，必须优先判断）
+            if isinstance(latest_data_date, datetime):
                 days_lag = (datetime.now() - latest_data_date).days
+            elif isinstance(latest_data_date, date):
+                days_lag = (date.today() - latest_data_date).days
             else:
                 days_lag = 999
 
