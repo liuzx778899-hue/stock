@@ -378,6 +378,32 @@ async def force_datasource(request: ForceDataSourceRequest):
         return {"success": True, "mode": "auto", "provider": None}
 
 
+# ==================== 内置数据源优先级管理 (修复 BUG-083) ====================
+
+class PriorityRequest(BaseModel):
+    priority: int
+
+
+@app.put("/api/datasource/builtin/{name}/priority")
+async def update_builtin_priority(name: str, request: PriorityRequest):
+    """更新内置数据源优先级"""
+    if request.priority < 1 or request.priority > 100:
+        return {"success": False, "message": "优先级必须在 1-100 之间"}
+    success = datasource_service.update_builtin_priority(name, request.priority)
+    if success:
+        return {"success": True, "message": f"数据源 {name} 优先级已更新为 {request.priority}"}
+    return {"success": False, "message": f"数据源 {name} 不存在或无法更新"}
+
+
+@app.post("/api/datasource/builtin/{name}/reset")
+async def reset_builtin_priority(name: str):
+    """重置内置数据源优先级为默认值"""
+    success = datasource_service.reset_builtin_priority(name)
+    if success:
+        return {"success": True, "message": f"数据源 {name} 优先级已重置"}
+    return {"success": False, "message": f"数据源 {name} 不存在或无法重置"}
+
+
 # ==================== Provider 能力声明 API (T7-1) ====================
 
 @app.get("/api/datasource/providers")
@@ -880,6 +906,28 @@ def _make_kline_progress_callback(loop):
     return callback
 
 
+def _make_basic_progress_callback(loop):
+    """创建基础信息采集进度回调（修复 BUG-082）"""
+    def callback(current, total, stage):
+        # 检查是否请求停止
+        if stop_requested.is_set():
+            raise TaskStoppedException("用户请求停止任务")
+
+        percent = round(current * 100 / total, 1) if total > 0 else 0
+        asyncio.run_coroutine_threadsafe(
+            manager.broadcast({
+                "type": "progress",
+                "completed": current,
+                "total": total,
+                "percent": percent,
+                "stage": stage,
+                "message": f"{stage}: {current}/{total} ({percent}%)"
+            }),
+            loop
+        )
+    return callback
+
+
 async def run_collect_basic():
     """后台运行：采集股票基础信息"""
     global task_status, stop_requested
@@ -894,10 +942,15 @@ async def run_collect_basic():
             return
 
         loop = asyncio.get_event_loop()
-        # 传递停止检查回调
+        # 创建进度回调（修复 BUG-082）
+        progress_cb = _make_basic_progress_callback(loop)
+        # 传递进度回调和停止检查回调
         count = await loop.run_in_executor(
             None,
-            lambda: collector.collect_stock_basic(stop_check=stop_requested.is_set)
+            lambda: collector.collect_stock_basic(
+                progress_callback=progress_cb,
+                stop_check=stop_requested.is_set
+            )
         )
 
         if stop_requested.is_set():
