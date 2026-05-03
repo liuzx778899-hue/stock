@@ -590,6 +590,103 @@ async def trigger_quality_check_after_collect():
         logger.error(f"自动质量检查失败: {e}")
 
 
+def _save_concept_mapping(session, mapping: Dict[str, List[str]]) -> Dict[str, Any]:
+    """保存概念板块映射到数据库
+
+    Args:
+        session: 数据库会话
+        mapping: {concept_name: [symbol1, symbol2, ...]}
+
+    Returns:
+        {"concepts": N, "relations": N}
+    """
+    from models import Concept, StockConcept
+    from sqlalchemy.dialects.mysql import insert as mysql_insert
+
+    if not mapping:
+        return {"concepts": 0, "relations": 0}
+
+    # 1. UPSERT 概念板块表 (BUG-106)
+    concept_id_map = {}
+    for name, symbols in mapping.items():
+        stmt = mysql_insert(Concept).values(
+            name=name,
+            block_type=0,
+            stock_count=len(symbols)
+        ).on_duplicate_key_update(
+            stock_count=len(symbols)
+        )
+        session.execute(stmt)
+
+    # 查询所有概念的 id（新插入 + 已存在）
+    existing = session.query(Concept.id, Concept.name).filter(
+        Concept.name.in_(list(mapping.keys()))
+    ).all()
+    for id_, name in existing:
+        concept_id_map[name] = id_
+
+    # 2. 全量刷新 stock_concept（先删后插）
+    session.query(StockConcept).delete()
+
+    batch_size = 5000
+    relations = []
+    for name, symbols in mapping.items():
+        concept_id = concept_id_map.get(name)
+        if concept_id is None:
+            continue
+        for symbol in symbols:
+            relations.append({"symbol": symbol, "concept_id": concept_id})
+
+    total_relations = len(relations)
+    for i in range(0, total_relations, batch_size):
+        batch = relations[i:i + batch_size]
+        session.execute(StockConcept.__table__.insert().prefix_with("IGNORE"), batch)
+
+    session.commit()
+    logger.info(f"概念板块保存完成: {len(mapping)} 个概念, {total_relations} 条关联")
+
+    return {"concepts": len(mapping), "relations": total_relations}
+
+
+async def run_collect_concept():
+    """后台运行：采集概念板块数据"""
+    from sqlalchemy.orm import Session
+    from sqlalchemy import create_engine
+    from config import config
+    from services.data_orchestrator import orchestrator
+
+    try:
+        await broadcast_status("progress", "开始采集概念板块数据...")
+
+        loop = asyncio.get_running_loop()
+        mapping = await loop.run_in_executor(
+            None, orchestrator.collect_concept
+        )
+
+        if not mapping:
+            await broadcast_status("error", "概念板块采集失败：无数据")
+            logger.error("概念板块采集失败：无数据")
+            return
+
+        # 保存到数据库
+        engine = create_engine(config.database.connection_url)
+        session = Session(bind=engine)
+        try:
+            stats = await loop.run_in_executor(
+                None, lambda: _save_concept_mapping(session, mapping)
+            )
+        finally:
+            session.close()
+
+        await broadcast_status("completed",
+            f"概念板块采集完成: {stats['concepts']} 个概念, {stats['relations']} 条关联")
+        logger.info(f"概念板块采集完成: {stats}")
+
+    except Exception as e:
+        logger.error(f"概念板块采集失败: {e}")
+        await broadcast_status("error", f"概念板块采集失败: {e}")
+
+
 # ==================== 必盈 API 管理 ====================
 
 @app.get("/api/biying/status")
@@ -930,6 +1027,13 @@ async def get_concept_stocks(concept_id: int, limit: int = 50, offset: int = 0):
         session.close()
 
 
+@app.post("/api/collect/concept")
+async def collect_concept(background_tasks: BackgroundTasks):
+    """采集概念板块数据"""
+    background_tasks.add_task(run_collect_concept)
+    return {"success": True, "message": "概念板块采集任务已启动"}
+
+
 @app.post("/api/collect/basic")
 async def collect_basic(background_tasks: BackgroundTasks):
     """采集股票基础信息"""
@@ -1267,6 +1371,8 @@ async def run_collect_basic():
             stop_requested.clear()
         # 采集完成后自动触发质量检查 (Q-6)
         await trigger_quality_check_after_collect()
+        # 基础采集完成后自动触发概念板块采集 (BUG-106)
+        await run_collect_concept()
 
 
 async def run_collect_kline(start_date: str, end_date: str, threads: int):
