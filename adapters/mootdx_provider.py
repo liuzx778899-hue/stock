@@ -275,9 +275,8 @@ class TdxProvider(DataProvider):
             return None
 
         try:
-            # mootdx F10 需要带市场前缀的代码（如 0000001）
-            # 标准市场模式下直接用 6 位代码
-            code = symbol.zfill(6)
+            # 去除 bj/sh/sz 等前缀，标准化为 6 位代码
+            code = symbol.replace('bj', '').replace('sh', '').replace('sz', '').zfill(6)
             data = quotes.F10(code)
             # 修复编码问题 (BUG-095)
             return self._fix_f10_encoding(data)
@@ -356,20 +355,24 @@ class TdxProvider(DataProvider):
         """判断是否为北交所代码
 
         北交所代码前缀: 83, 87, 92, 93 (北交所专用代码段)
+        支持 bj 前缀格式：bj920000 → 920000
         """
         if not symbol:
             return False
-        code = symbol.zfill(6)
+        # 去除 bj/sh/sz 等前缀
+        code = symbol.replace('bj', '').replace('sh', '').replace('sz', '').zfill(6)
         return code.startswith(('83', '87', '92', '93'))
 
     def _is_hs_symbol(self, symbol: str) -> bool:
         """判断是否为沪深代码
 
         沪深代码前缀: 60, 00, 30, 68 (上证、深证、创业板、科创板)
+        支持 sh/sz 前缀格式：sh600000 → 600000
         """
         if not symbol:
             return False
-        code = symbol.zfill(6)
+        # 去除 bj/sh/sz 等前缀
+        code = symbol.replace('bj', '').replace('sh', '').replace('sz', '').zfill(6)
         return code.startswith(('60', '00', '30', '68'))
 
     # ---- DataProvider 接口实现 ----
@@ -389,9 +392,14 @@ class TdxProvider(DataProvider):
             return cached_industry
 
         # 获取股票列表（从 stock_basic 表）
-        from models import Session, StockBasic
+        from sqlalchemy.orm import Session as ORMSession
+        from config import config
+        from sqlalchemy import create_engine
+        from models import StockBasic
+
         try:
-            with Session() as session:
+            engine = create_engine(config.database.connection_url)
+            with ORMSession(bind=engine) as session:
                 stocks = session.query(StockBasic.symbol).all()
                 all_symbols = [s.symbol for s in stocks]
         except Exception as e:
@@ -453,9 +461,14 @@ class TdxProvider(DataProvider):
             return cached_area
 
         # 获取股票列表
-        from models import Session, StockBasic
+        from sqlalchemy.orm import Session as ORMSession
+        from config import config
+        from sqlalchemy import create_engine
+        from models import StockBasic
+
         try:
-            with Session() as session:
+            engine = create_engine(config.database.connection_url)
+            with ORMSession(bind=engine) as session:
                 stocks = session.query(StockBasic.symbol).all()
                 all_symbols = [s.symbol for s in stocks]
         except Exception as e:

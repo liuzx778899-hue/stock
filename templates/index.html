@@ -896,16 +896,11 @@
         }
 
         function loadLogs() {
-            // 从 localStorage 恢复历史日志
+            // 首次进入系统时清空日志（不再恢复历史日志）
             const container = document.getElementById('log-container');
-            const savedLogs = JSON.parse(localStorage.getItem('collector_logs') || '[]');
-            if (savedLogs.length > 0) {
-                container.innerHTML = savedLogs.map(log =>
-                    `<div class="log-entry ${log.type}">${log.message}</div>`
-                ).join('');
-            } else {
-                container.innerHTML = '<div class="log-entry" style="color: #888;">等待采集任务...</div>';
-            }
+            container.innerHTML = '<div class="log-entry" style="color: #888;">等待采集任务...</div>';
+            // 清空历史日志缓存
+            localStorage.removeItem('collector_logs');
         }
 
         function clearLogs() {
