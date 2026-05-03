@@ -458,6 +458,7 @@
                     <h2>✅ 数据质量分析</h2>
                     <div style="display: flex; gap: 12px; align-items: center;">
                         <span id="quality-check-time" style="color: #888; font-size: 13px;"></span>
+                        <input type="date" id="quality-date" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="loadQualityReport()">
                         <button class="btn btn-primary" onclick="triggerQualityCheck()">开始检查</button>
                     </div>
                 </div>
@@ -640,7 +641,12 @@
         // ==================== 数据质量 (Q-4) ====================
         async function loadQualityReport() {
             try {
-                const resp = await fetch('/api/quality/report');
+                const dateInput = document.getElementById('quality-date');
+                const selectedDate = dateInput ? dateInput.value : '';
+                const url = selectedDate
+                    ? `/api/quality/report?date=${selectedDate}`
+                    : '/api/quality/report';
+                const resp = await fetch(url);
                 const data = await resp.json();
 
                 if (data.check_time) {
@@ -1413,6 +1419,26 @@
                 }
             } catch (e) {
                 alert('更新优先级失败: ' + e.message);
+            }
+        }
+
+        async function toggleDatasource(sourceName, enabled) {
+            try {
+                const resp = await fetch(`/api/datasource/toggle/${sourceName}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enabled })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    addLog('info', data.message);
+                    loadDataSources();  // 刷新列表
+                    loadForcedDatasourceOptions();  // 刷新下拉框（排除禁用的）
+                } else {
+                    alert(data.message);
+                }
+            } catch (e) {
+                alert('切换数据源状态失败: ' + e.message);
             }
         }
 

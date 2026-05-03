@@ -306,9 +306,12 @@ async def list_datasources():
 
 @app.get("/api/datasource/options")
 async def get_datasource_options():
-    """获取数据源下拉选项（修复 BUG-081）"""
-    sources = datasource_service.list_all()
-    return {"sources": sources}
+    """获取数据源下拉选项（修复 BUG-081，排除禁用的 Provider）"""
+    from adapters import registry
+    all_sources = datasource_service.list_all()
+    # 过滤禁用的 Provider
+    enabled_sources = [s for s in all_sources if s.get('enabled', True)]
+    return {"sources": enabled_sources}
 
 
 @app.post("/api/datasource/add")
@@ -407,6 +410,21 @@ async def reset_builtin_priority(name: str):
     return {"success": False, "message": f"数据源 {name} 不存在或无法重置"}
 
 
+class ToggleRequest(BaseModel):
+    enabled: bool
+
+
+@app.post("/api/datasource/toggle/{name}")
+async def toggle_datasource(name: str, request: ToggleRequest):
+    """启用/禁用数据源"""
+    from adapters import registry
+    success = registry.set_enabled(name, request.enabled)
+    if success:
+        status = "启用" if request.enabled else "禁用"
+        return {"success": True, "message": f"数据源 {name} 已{status}", "enabled": request.enabled}
+    return {"success": False, "message": f"数据源 {name} 不存在"}
+
+
 # ==================== Provider 能力声明 API (T7-1) ====================
 
 @app.get("/api/datasource/providers")
@@ -429,8 +447,13 @@ async def get_field_coverage_report():
 # ==================== 数据质量 API (Q-3) ====================
 
 @app.get("/api/quality/report")
-async def get_quality_report(category: Optional[str] = None):
-    """获取最近一次质量检查报告"""
+async def get_quality_report(category: Optional[str] = None, date: Optional[str] = None):
+    """获取质量检查报告
+
+    Args:
+        category: 可选，指定数据类别
+        date: 可选，格式 YYYY-MM-DD，不传则返回最新报告
+    """
     from sqlalchemy.orm import Session
     from services.data_quality import QualityService
     from config import config
@@ -440,7 +463,7 @@ async def get_quality_report(category: Optional[str] = None):
     session = Session(bind=engine)
     try:
         service = QualityService(session)
-        reports = service.get_latest_report(category)
+        reports = service.get_latest_report(category, target_date=date)
         return {
             "check_time": reports[0]['check_time'] if reports else None,
             "reports": reports

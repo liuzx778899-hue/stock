@@ -414,17 +414,27 @@ class QualityService:
             self.session.add(report)
         self.session.commit()
 
-    def get_latest_report(self, category: Optional[str] = None) -> List[Dict[str, Any]]:
-        """获取最近一次检查报告"""
+    def get_latest_report(self, category: Optional[str] = None, target_date: Optional[str] = None) -> List[Dict[str, Any]]:
+        """获取检查报告
+
+        Args:
+            category: 可选，指定数据类别
+            target_date: 可选，格式 YYYY-MM-DD，不传则返回最新报告
+        """
+        from sqlalchemy import cast, DATE
         results = []
         for cat in self.CATEGORIES:
             if category and cat != category:
                 continue
             # 每个类别独立创建 query，避免 filter 条件叠加 (BUG-085)
-            report = self.session.query(DataQualityReport) \
-                .filter(DataQualityReport.data_category == cat) \
-                .order_by(DataQualityReport.check_time.desc()) \
-                .first()
+            query = self.session.query(DataQualityReport) \
+                .filter(DataQualityReport.data_category == cat)
+
+            if target_date:
+                # 按指定日期过滤
+                query = query.filter(cast(DataQualityReport.check_time, DATE) == target_date)
+
+            report = query.order_by(DataQualityReport.check_time.desc()).first()
             if report:
                 results.append({
                     'data_category': report.data_category,

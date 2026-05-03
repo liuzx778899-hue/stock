@@ -55,6 +55,14 @@ class DataSourceRegistry:
                 return True
         return False
 
+    def set_enabled(self, provider_name: str, enabled: bool) -> bool:
+        """启用/禁用数据源"""
+        for p in self._providers:
+            if p.provider_name == provider_name:
+                p._enabled = enabled
+                return True
+        return False
+
     def get_providers_for(self, category: DataCategory) -> List[DataProvider]:
         """获取能提供指定数据类别的 Provider 列表
 
