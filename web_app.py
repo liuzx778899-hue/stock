@@ -487,6 +487,43 @@ async def search_logs(keyword: str = "", file: Optional[str] = None):
     return {"results": results}
 
 
+@app.get("/api/logs/content")
+async def get_log_content(filename: str, lines: int = 100, offset: int = 0):
+    """读取日志文件内容（倒序，最新日志在前）"""
+    log_dir = Path("logs")
+    if not log_dir.exists():
+        return {"success": False, "message": "日志目录不存在"}
+
+    # 安全检查：防止路径遍历
+    safe_filename = Path(filename).name
+    log_file = log_dir / safe_filename
+
+    if not log_file.exists():
+        return {"success": False, "message": "日志文件不存在"}
+
+    try:
+        with open(log_file, 'r', encoding='utf-8', errors='ignore') as f:
+            all_lines = f.readlines()
+
+        total_lines = len(all_lines)
+        # 倒序读取（最新日志在前）
+        reversed_lines = list(reversed(all_lines))
+
+        start = offset
+        end = min(offset + lines, total_lines)
+        content = [line.rstrip('\n\r') for line in reversed_lines[start:end]]
+
+        return {
+            "success": True,
+            "content": content,
+            "start": start,
+            "end": end,
+            "total_lines": total_lines
+        }
+    except Exception as e:
+        return {"success": False, "message": f"读取失败: {str(e)}"}
+
+
 class LogCleanupRequest(BaseModel):
     days: int = 7
 
@@ -546,8 +583,8 @@ async def get_stats():
 
 
 @app.get("/api/stocks")
-async def get_stocks():
-    """获取股票列表"""
+async def get_stocks(search: Optional[str] = None, limit: int = 100):
+    """获取股票列表（支持搜索）"""
     global collector
     async with collector_lock:
         if collector is None:
@@ -556,11 +593,31 @@ async def get_stocks():
 
     session = Session(bind=collector.engine)
     try:
-        stocks = session.query(StockBasic).limit(100).all()
+        query = session.query(StockBasic)
+
+        # 搜索过滤
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(
+                (StockBasic.ts_code.ilike(search_pattern)) |
+                (StockBasic.name.ilike(search_pattern)) |
+                (StockBasic.industry.ilike(search_pattern)) |
+                (StockBasic.area.ilike(search_pattern))
+            )
+
+        total = query.count()
+        stocks = query.limit(limit).all()
+
         return {
-            "total": session.query(StockBasic).count(),
+            "total": total,
             "stocks": [
-                {"ts_code": s.ts_code, "name": s.name, "industry": s.industry}
+                {
+                    "ts_code": s.ts_code,
+                    "symbol": s.ts_code.split('.')[0] if s.ts_code else '',
+                    "name": s.name,
+                    "industry": s.industry,
+                    "area": s.area
+                }
                 for s in stocks
             ]
         }
