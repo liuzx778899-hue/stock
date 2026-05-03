@@ -103,6 +103,9 @@ class DataSourceService:
             data = json.loads(self.config_file.read_text(encoding='utf-8'))
             self.custom_sources = [CustomDataSourceConfig(**s) for s in data.get('custom_sources', [])]
             self.builtin_priorities = data.get('builtin_priorities', {})
+            # 同步已保存的优先级到 registry
+            for name, priority in self.builtin_priorities.items():
+                self.registry.set_priority(name, priority)
             logger.info(f"加载 {len(self.custom_sources)} 个自定义数据源, {len(self.builtin_priorities)} 个优先级覆盖")
         except Exception as e:
             logger.warning(f"加载数据源配置失败: {e}")
@@ -213,11 +216,15 @@ class DataSourceService:
 
     def reset_builtin_priority(self, name: str) -> bool:
         """重置内置数据源优先级为默认值"""
+        if name not in BUILTIN_DEFAULT_PRIORITIES:
+            return False
         if name in self.builtin_priorities:
             del self.builtin_priorities[name]
-        self.registry.clear_priority(name)
+        # 恢复到默认优先级而非 99
+        default_priority = BUILTIN_DEFAULT_PRIORITIES[name]
+        self.registry.set_priority(name, default_priority)
         self._save()
-        logger.info(f"重置内置数据源 {name} 优先级")
+        logger.info(f"重置内置数据源 {name} 优先级为默认值 {default_priority}")
         return True
 
     # ==================== 连通性测试（含 SSRF 防护） ====================

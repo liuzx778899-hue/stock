@@ -11,6 +11,7 @@ from adapters.registry import registry
 from adapters.base import DataCategory, DataProvider
 from services.data_validator import DataValidator
 from services.field_merger import FieldMerger
+from services.datasource_service import datasource_service
 from utils import logger
 
 
@@ -22,16 +23,26 @@ class DataOrchestrator:
     - 按质量优先级尝试
     - 自动补齐缺失字段
     - 统一降级策略
+    - 支持强制数据源选择
     """
 
     def __init__(self):
         self.registry = registry
         self.validator = DataValidator()
         self.merger = FieldMerger()
+        self.datasource_service = datasource_service
         self._last_field_report: Dict[str, Any] = {}
 
     def get_providers(self, category: DataCategory) -> List[DataProvider]:
-        """获取指定类别可用的数据源列表"""
+        """获取指定类别可用的数据源列表（支持强制数据源）"""
+        forced = self.datasource_service.get_forced_source()
+        if forced:
+            # 强制模式：只返回指定的 Provider
+            provider = self.registry.get_provider(forced)
+            if provider and provider.enabled and provider.supports(category):
+                return [provider]
+            logger.warning(f"强制数据源 {forced} 不支持 {category.value}")
+            return []
         return self.registry.get_providers_for(category)
 
     def collect_stock_basic(

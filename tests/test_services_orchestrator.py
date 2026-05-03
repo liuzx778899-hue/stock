@@ -26,8 +26,9 @@ class TestDataOrchestrator:
         """测试获取提供者列表"""
         providers = self.orchestrator.get_providers(DataCategory.STOCK_BASIC)
         assert len(providers) >= 1
-        # 按质量排序
-        assert providers[0].provider_name in ["eastmoney", "biying"]
+        # 验证返回的 Provider 都支持请求的类别
+        for p in providers:
+            assert p.supports(DataCategory.STOCK_BASIC)
 
     def test_get_providers_all_categories(self):
         """测试所有类别都有提供者"""
