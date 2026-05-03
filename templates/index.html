@@ -887,6 +887,7 @@
         // ==================== 质量趋势分析 ====================
         let currentQualityCategory = 'stock_basic';
         let qualityTrendData = {};
+        let qualityTrendChartInstance = null;
 
         function switchQualityTab(category) {
             currentQualityCategory = category;
@@ -969,7 +970,13 @@
                 return;
             }
 
+            // 销毁旧图表实例
+            if (qualityTrendChartInstance) {
+                qualityTrendChartInstance.dispose();
+            }
+
             const chart = echarts.init(container);
+            qualityTrendChartInstance = chart;
             const dates = data.map(d => d.check_time);
             const completenessScores = data.map(d => d.completeness);
             const freshnessScores = data.map(d => d.freshness);
@@ -1045,8 +1052,12 @@
                 ]
             });
 
-            // 响应式
-            window.addEventListener('resize', () => chart.resize());
+            // 响应式 - 使用 ECharts 内置 resize 监听
+            window.addEventListener('resize', function() {
+                if (qualityTrendChartInstance) {
+                    qualityTrendChartInstance.resize();
+                }
+            });
         }
 
         async function triggerQualityCheck() {
