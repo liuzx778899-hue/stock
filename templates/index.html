@@ -1468,7 +1468,7 @@
                 if (data.success) {
                     addLog('info', data.message);
                     loadDataSources();  // 刷新列表
-                    loadForcedDatasourceOptions();  // 刷新下拉框（排除禁用的）
+                    loadDataSourceOptions();  // 刷新下拉框（排除禁用的）
                 } else {
                     alert(data.message);
                 }

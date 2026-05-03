@@ -208,6 +208,38 @@ class TdxProvider(DataProvider):
 
     # ---- F10 批量查询 ----
 
+    def _fix_encoding(self, text: str) -> str:
+        """修复 mootdx F10 数据的编码问题
+
+        mootdx 内部可能将 GBK 数据误解码为 Latin-1，
+        导致中文显示为乱码。尝试转回 GBK。
+        """
+        if not text or not isinstance(text, str):
+            return text
+        try:
+            # 检测是否为乱码：包含 Latin-1 范围内的字符但不包含常见中文
+            # 如果包含常见中文字符，则不需要修复
+            if any('一' <= c <= '鿿' for c in text):
+                return text
+            # 尝试 Latin-1 → GBK 转换
+            return text.encode('latin-1').decode('gbk')
+        except (UnicodeDecodeError, UnicodeEncodeError):
+            # 转换失败，返回原文本
+            return text
+
+    def _fix_f10_encoding(self, data: dict) -> dict:
+        """修复 F10 dict 的编码问题"""
+        if not data:
+            return data
+        fixed = {}
+        for key, value in data.items():
+            fixed_key = self._fix_encoding(key)
+            if isinstance(value, str):
+                fixed[fixed_key] = self._fix_encoding(value)
+            else:
+                fixed[fixed_key] = value
+        return fixed
+
     def _fetch_one_f10(self, symbol: str, use_thread_quotes: bool = False) -> Optional[dict]:
         """获取单只股票的 F10 数据"""
         quotes = self._get_thread_quotes() if use_thread_quotes else self._quotes
@@ -219,7 +251,8 @@ class TdxProvider(DataProvider):
             # 标准市场模式下直接用 6 位代码
             code = symbol.zfill(6)
             data = quotes.F10(code)
-            return data
+            # 修复编码问题 (BUG-095)
+            return self._fix_f10_encoding(data)
         except Exception as e:
             logger.warning(f"[mootdx] F10 获取失败 {symbol}: {e}")
             return None
