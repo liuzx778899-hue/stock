@@ -13,6 +13,10 @@
           <span class="icon">📥</span>
           <span>Collector</span>
         </router-link>
+        <router-link to="/quality" class="nav-item" active-class="active">
+          <span class="icon">✅</span>
+          <span>Quality</span>
+        </router-link>
         <router-link to="/settings" class="nav-item" active-class="active">
           <span class="icon">⚙️</span>
           <span>Settings</span>

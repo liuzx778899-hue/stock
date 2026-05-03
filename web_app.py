@@ -423,6 +423,110 @@ async def get_field_coverage_report():
     return report if report else {"message": "暂无采集数据"}
 
 
+# ==================== 数据质量 API (Q-3) ====================
+
+@app.get("/api/quality/report")
+async def get_quality_report(category: Optional[str] = None):
+    """获取最近一次质量检查报告"""
+    from sqlalchemy.orm import Session
+    from services.data_quality import QualityService
+    from config import config
+
+    engine = config.get_engine()
+    session = Session(bind=engine)
+    try:
+        service = QualityService(session)
+        reports = service.get_latest_report(category)
+        return {
+            "check_time": reports[0]['check_time'] if reports else None,
+            "reports": reports
+        }
+    finally:
+        session.close()
+
+
+@app.post("/api/quality/check")
+async def trigger_quality_check():
+    """触发全量质量检查"""
+    from sqlalchemy.orm import Session
+    from services.data_quality import QualityService
+    from config import config
+
+    engine = config.get_engine()
+    session = Session(bind=engine)
+    try:
+        service = QualityService(session)
+        results = service.check_all()
+        service.save_report(results)
+
+        # 广播质量更新通知
+        await manager.broadcast({
+            "type": "quality_update",
+            "message": "质量检查完成",
+            "reports": results
+        })
+
+        return {
+            "check_time": datetime.now().isoformat(),
+            "reports": results
+        }
+    finally:
+        session.close()
+
+
+@app.get("/api/quality/history")
+async def get_quality_history(category: Optional[str] = None, limit: int = 20):
+    """获取历史质量检查记录"""
+    from sqlalchemy.orm import Session
+    from services.data_quality import QualityService
+    from config import config
+
+    engine = config.get_engine()
+    session = Session(bind=engine)
+    try:
+        service = QualityService(session)
+        history = service.get_history(category, limit)
+        return {"history": history}
+    finally:
+        session.close()
+
+
+# ==================== 采集后自动质量检查 (Q-6) ====================
+
+async def trigger_quality_check_after_collect():
+    """采集完成后自动触发质量检查"""
+    from sqlalchemy.orm import Session
+    from services.data_quality import QualityService
+    from config import config
+
+    try:
+        engine = config.get_engine()
+        session = Session(bind=engine)
+        try:
+            service = QualityService(session)
+            results = service.check_all()
+            service.save_report(results)
+
+            # 广播质量更新通知
+            await manager.broadcast({
+                "type": "quality_update",
+                "message": "质量检查已完成",
+                "reports": [
+                    {
+                        "data_category": r["data_category"],
+                        "total_score": r["total_score"],
+                        "status": r["status"]
+                    }
+                    for r in results
+                ]
+            })
+            logger.info("自动质量检查完成")
+        finally:
+            session.close()
+    except Exception as e:
+        logger.error(f"自动质量检查失败: {e}")
+
+
 # ==================== 必盈 API 管理 ====================
 
 @app.get("/api/biying/status")
@@ -971,6 +1075,10 @@ async def run_collect_basic():
         async with task_lock:
             task_status["running"] = False
             stop_requested.clear()
+        # 采集完成后自动触发质量检查 (Q-6)
+        await trigger_quality_check_after_collect()
+        # 采集完成后自动触发质量检查 (Q-6)
+        await trigger_quality_check_after_collect()
 
 
 async def run_collect_kline(start_date: str, end_date: str, threads: int):
@@ -1012,6 +1120,8 @@ async def run_collect_kline(start_date: str, end_date: str, threads: int):
         async with task_lock:
             task_status["running"] = False
             stop_requested.clear()
+        # 采集完成后自动触发质量检查 (Q-6)
+        await trigger_quality_check_after_collect()
 
 
 async def run_collect_incremental(days: int):
@@ -1048,6 +1158,8 @@ async def run_collect_incremental(days: int):
         async with task_lock:
             task_status["running"] = False
             stop_requested.clear()
+        # 采集完成后自动触发质量检查 (Q-6)
+        await trigger_quality_check_after_collect()
 
 
 async def run_collect_realtime():
@@ -1085,6 +1197,8 @@ async def run_collect_realtime():
         async with task_lock:
             task_status["running"] = False
             stop_requested.clear()
+        # 采集完成后自动触发质量检查 (Q-6)
+        await trigger_quality_check_after_collect()
 
 
 # ==================== 辅助函数 ====================

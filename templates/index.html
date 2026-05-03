@@ -68,6 +68,12 @@
         .datasource-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f8f9fa; border-radius: 8px; margin-bottom: 8px; }
         .datasource-item.builtin { background: #f0f5ff; }
         .datasource-item.custom { background: #fff7e6; }
+
+        /* 数据质量卡片样式 */
+        .quality-card { background: white; border-radius: 8px; padding: 16px; border-left: 4px solid #667eea; transition: all 0.3s; }
+        .quality-card:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+        .quality-score { font-size: 32px; font-weight: 600; color: #333; text-align: center; margin: 8px 0; }
+        .quality-status { font-size: 12px; padding: 2px 8px; border-radius: 4px; }
     </style>
 </head>
 <body>
@@ -92,6 +98,9 @@
             </a>
             <a class="nav-item" data-page="logs" onclick="showPage('logs')">
                 <span class="nav-item-icon">📋</span>日志查看
+            </a>
+            <a class="nav-item" data-page="quality" onclick="showPage('quality')">
+                <span class="nav-item-icon">✅</span>数据质量
             </a>
         </nav>
     </div>
@@ -438,6 +447,99 @@
                 </div>
             </div>
         </div>
+
+        <!-- 数据质量页面 (Q-4) -->
+        <div id="page-quality" class="page">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2>✅ 数据质量分析</h2>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <span id="quality-check-time" style="color: #888; font-size: 13px;"></span>
+                        <button class="btn btn-primary" onclick="triggerQualityCheck()">开始检查</button>
+                    </div>
+                </div>
+
+                <!-- 质量评分卡片 -->
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px;">
+                    <!-- 股票基础信息 -->
+                    <div class="quality-card" id="quality-stock_basic">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h3 style="margin: 0;">📊 股票基础信息</h3>
+                            <span class="quality-status" id="status-stock_basic">-</span>
+                        </div>
+                        <div class="quality-score" id="score-stock_basic">-</div>
+                        <div style="margin-top: 12px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                                <span>完整度</span>
+                                <span id="completeness-stock_basic">-</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                                <span>新鲜度</span>
+                                <span id="freshness-stock_basic">-</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                                <span>异常检测</span>
+                                <span id="anomaly-stock_basic">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- K线数据 -->
+                    <div class="quality-card" id="quality-kline_daily">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h3 style="margin: 0;">📈 K线数据</h3>
+                            <span class="quality-status" id="status-kline_daily">-</span>
+                        </div>
+                        <div class="quality-score" id="score-kline_daily">-</div>
+                        <div style="margin-top: 12px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                                <span>完整度</span>
+                                <span id="completeness-kline_daily">-</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                                <span>新鲜度</span>
+                                <span id="freshness-kline_daily">-</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                                <span>异常检测</span>
+                                <span id="anomaly-kline_daily">-</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- 实时行情 -->
+                    <div class="quality-card" id="quality-realtime_quote">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                            <h3 style="margin: 0;">💹 实时行情</h3>
+                            <span class="quality-status" id="status-realtime_quote">-</span>
+                        </div>
+                        <div class="quality-score" id="score-realtime_quote">-</div>
+                        <div style="margin-top: 12px;">
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                                <span>完整度</span>
+                                <span id="completeness-realtime_quote">-</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-bottom: 6px;">
+                                <span>新鲜度</span>
+                                <span id="freshness-realtime_quote">-</span>
+                            </div>
+                            <div style="display: flex; justify-content: space-between; font-size: 13px;">
+                                <span>异常检测</span>
+                                <span id="anomaly-realtime_quote">-</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 异常详情 -->
+                <div class="card" style="background: #f8f9fa;">
+                    <h3 style="margin-bottom: 12px;">📋 异常详情</h3>
+                    <div id="anomaly-details" style="font-size: 13px; color: #666;">
+                        <p>点击"开始检查"查看详细异常信息</p>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -529,6 +631,150 @@
             }
             if (pageName === 'settings') loadStats();
             if (pageName === 'logs') loadLogsList();
+            if (pageName === 'quality') loadQualityReport();
+        }
+
+        // ==================== 数据质量 (Q-4) ====================
+        async function loadQualityReport() {
+            try {
+                const resp = await fetch('/api/quality/report');
+                const data = await resp.json();
+
+                if (data.check_time) {
+                    document.getElementById('quality-check-time').textContent = '检查时间: ' + data.check_time;
+                }
+
+                data.reports.forEach(report => {
+                    const category = report.data_category;
+
+                    // 更新分数
+                    const scoreEl = document.getElementById('score-' + category);
+                    if (scoreEl) {
+                        scoreEl.textContent = report.total_score.toFixed(1);
+                    }
+
+                    // 更新状态
+                    const statusEl = document.getElementById('status-' + category);
+                    if (statusEl) {
+                        statusEl.textContent = report.status;
+                        statusEl.style.background = report.total_score >= 80 ? '#52c41a' :
+                            report.total_score >= 60 ? '#faad14' : '#f5222d';
+                        statusEl.style.color = 'white';
+                        statusEl.style.padding = '2px 8px';
+                        statusEl.style.borderRadius = '4px';
+                        statusEl.style.fontSize = '12px';
+                    }
+
+                    // 更新卡片背景色
+                    const cardEl = document.getElementById('quality-' + category);
+                    if (cardEl) {
+                        cardEl.style.borderLeft = report.total_score >= 80 ? '4px solid #52c41a' :
+                            report.total_score >= 60 ? '4px solid #faad14' : '4px solid #f5222d';
+                    }
+
+                    // 更新维度分数
+                    const compEl = document.getElementById('completeness-' + category);
+                    if (compEl) {
+                        compEl.textContent = report.completeness_score.toFixed(1);
+                        compEl.style.color = report.completeness_score >= 80 ? '#52c41a' :
+                            report.completeness_score >= 60 ? '#faad14' : '#f5222d';
+                    }
+
+                    const freshEl = document.getElementById('freshness-' + category);
+                    if (freshEl) {
+                        freshEl.textContent = report.freshness_score.toFixed(1);
+                        freshEl.style.color = report.freshness_score >= 80 ? '#52c41a' :
+                            report.freshness_score >= 60 ? '#faad14' : '#f5222d';
+                    }
+
+                    const anomEl = document.getElementById('anomaly-' + category);
+                    if (anomEl) {
+                        anomEl.textContent = report.anomaly_score.toFixed(1);
+                        anomEl.style.color = report.anomaly_score >= 80 ? '#52c41a' :
+                            report.anomaly_score >= 60 ? '#faad14' : '#f5222d';
+                    }
+                });
+
+                // 更新异常详情
+                updateAnomalyDetails(data.reports);
+            } catch (e) {
+                console.error('加载质量报告失败:', e);
+            }
+        }
+
+        function updateAnomalyDetails(reports) {
+            const container = document.getElementById('anomaly-details');
+            if (!container) return;
+
+            let html = '';
+            reports.forEach(report => {
+                const anomalies = report.anomaly_detail?.anomalies || [];
+                if (anomalies.length > 0) {
+                    const categoryName = {
+                        'stock_basic': '股票基础信息',
+                        'kline_daily': 'K线数据',
+                        'realtime_quote': '实时行情'
+                    }[report.data_category] || report.data_category;
+
+                    html += `<div style="margin-bottom: 12px;">
+                        <strong>${categoryName}</strong>:
+                        ${anomalies.map(a => `${a.type}: ${a.count}条`).join(' · ')}
+                    </div>`;
+                }
+            });
+
+            if (!html) {
+                html = '<p style="color: #52c41a;">✅ 暂无异常</p>';
+            }
+
+            container.innerHTML = html;
+        }
+
+        async function triggerQualityCheck() {
+            try {
+                const btn = event.target;
+                btn.disabled = true;
+                btn.textContent = '检查中...';
+
+                const resp = await fetch('/api/quality/check', { method: 'POST' });
+                const data = await resp.json();
+
+                // 更新检查时间
+                document.getElementById('quality-check-time').textContent = '检查时间: ' + data.check_time;
+
+                // 更新报告
+                data.reports.forEach(report => {
+                    const category = report.data_category;
+
+                    // 更新分数
+                    const scoreEl = document.getElementById('score-' + category);
+                    if (scoreEl) scoreEl.textContent = report.total_score.toFixed(1);
+
+                    // 更新状态
+                    const statusEl = document.getElementById('status-' + category);
+                    if (statusEl) {
+                        statusEl.textContent = report.status;
+                        statusEl.style.background = report.total_score >= 80 ? '#52c41a' :
+                            report.total_score >= 60 ? '#faad14' : '#f5222d';
+                    }
+
+                    // 更新维度分数
+                    ['completeness', 'freshness', 'anomaly'].forEach(dim => {
+                        const el = document.getElementById(dim + '-' + category);
+                        if (el) {
+                            el.textContent = report[dim + '_score'].toFixed(1);
+                        }
+                    });
+                });
+
+                updateAnomalyDetails(data.reports);
+            } catch (e) {
+                alert('质量检查失败: ' + e.message);
+            } finally {
+                const btn = event.target;
+                btn.disabled = false;
+                btn.textContent = '开始检查';
+            }
         }
 
         // WebSocket 初始化

@@ -12,6 +12,11 @@ const routes = [
     component: () => import('../views/Collector.vue')
   },
   {
+    path: '/quality',
+    name: 'Quality',
+    component: () => import('../views/Quality.vue')
+  },
+  {
     path: '/settings',
     name: 'Settings',
     component: () => import('../views/Settings.vue')

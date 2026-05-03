@@ -65,4 +65,9 @@ export const removeDatasource = (id) => api.delete(`/datasource/${id}`)
 // 测试数据源连通性
 export const testDatasource = (params) => api.post('/datasource/test', params)
 
+// 数据质量 API (Q-5)
+export const getQualityReport = (category) => api.get('/quality/report', { params: { category } })
+export const triggerQualityCheck = () => api.post('/quality/check')
+export const getQualityHistory = (category, limit = 20) => api.get('/quality/history', { params: { category, limit } })
+
 export default api

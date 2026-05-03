@@ -5,7 +5,7 @@ from datetime import datetime, date
 from decimal import Decimal
 from sqlalchemy import (
     Column, String, Text, BigInteger, Integer, Numeric, Date, DateTime,
-    Index, UniqueConstraint, text
+    Index, UniqueConstraint, text, JSON
 )
 from sqlalchemy.orm import declarative_base
 
@@ -151,3 +151,25 @@ class BiyingLicence(Base):
     is_available = Column(Integer, default=1, comment='是否可用')
     added_at = Column(DateTime, default=datetime.now, comment='添加时间')
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
+
+
+class DataQualityReport(Base):
+    """数据质量检查报告表"""
+    __tablename__ = 'data_quality_report'
+    __table_args__ = (
+        Index('idx_quality_category_time', 'data_category', 'check_time'),
+        {'comment': '数据质量检查报告表'}
+    )
+
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
+    check_time = Column(DateTime, nullable=False, comment='检查时间')
+    data_category = Column(String(32), nullable=False, comment='数据类别(stock_basic|kline_daily|realtime_quote)')
+    total_score = Column(Numeric(5, 1), nullable=False, comment='总分(0-100)')
+    completeness_score = Column(Numeric(5, 1), nullable=False, comment='完整度分数')
+    freshness_score = Column(Numeric(5, 1), nullable=False, comment='新鲜度分数')
+    anomaly_score = Column(Numeric(5, 1), nullable=False, comment='异常检测分数(100=无异常)')
+    completeness_detail = Column(JSON, comment='各字段覆盖率明细')
+    freshness_detail = Column(JSON, comment='新鲜度明细(last_update/days_lag)')
+    anomaly_detail = Column(JSON, comment='异常明细列表')
+    status = Column(String(16), default='ok', comment='状态(ok|warning|critical)')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')

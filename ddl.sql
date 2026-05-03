@@ -142,3 +142,23 @@ INSERT INTO datasource_config (id, name, type, priority, enabled, is_builtin, de
 ('akshare_tencent', '腾讯', 'akshare', 3, 1, 1, 'AkShare腾讯数据源'),
 ('biying', '必盈API', 'http', 4, 1, 1, '必盈API付费数据源，需配置Licence')
 ON DUPLICATE KEY UPDATE name=VALUES(name);
+
+-- ============================================
+-- 7. 数据质量检查报告表
+-- ============================================
+CREATE TABLE IF NOT EXISTS data_quality_report (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    check_time DATETIME NOT NULL COMMENT '检查时间',
+    data_category VARCHAR(32) NOT NULL COMMENT '数据类别(stock_basic|kline_daily|realtime_quote)',
+    total_score DECIMAL(5,1) NOT NULL COMMENT '总分(0-100)',
+    completeness_score DECIMAL(5,1) NOT NULL COMMENT '完整度分数',
+    freshness_score DECIMAL(5,1) NOT NULL COMMENT '新鲜度分数',
+    anomaly_score DECIMAL(5,1) NOT NULL COMMENT '异常检测分数(100=无异常)',
+    completeness_detail JSON COMMENT '各字段覆盖率明细',
+    freshness_detail JSON COMMENT '新鲜度明细(last_update/days_lag)',
+    anomaly_detail JSON COMMENT '异常明细列表',
+    status VARCHAR(16) DEFAULT 'ok' COMMENT '状态(ok|warning|critical)',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    PRIMARY KEY (id),
+    INDEX idx_quality_category_time (data_category, check_time DESC)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据质量检查报告表';

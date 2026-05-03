@@ -105,7 +105,7 @@ class DataValidator:
             return []
 
         check_fields = fields or list(df.columns)
-        total = len(df)
+        total = int(len(df))
         report = []
 
         for field_name in check_fields:
@@ -117,8 +117,8 @@ class DataValidator:
                     coverage_rate=0.0
                 ))
             else:
-                covered = df[field_name].notna().sum()
-                rate = covered / total if total > 0 else 0.0
+                covered = int(df[field_name].notna().sum())
+                rate = float(covered / total) if total > 0 else 0.0
                 report.append(FieldCoverage(
                     field_name=field_name,
                     total_count=total,
