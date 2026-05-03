@@ -630,15 +630,32 @@ async def collect_realtime(background_tasks: BackgroundTasks):
     return {"success": True, "message": "实时行情采集任务已启动"}
 
 
+class ForceStopRequest(BaseModel):
+    force: bool = False
+
+
 @app.post("/api/stop")
-async def stop_task():
+async def stop_task(request: Optional[ForceStopRequest] = None):
     """停止采集任务"""
     global stop_requested, task_status
 
     if not task_status["running"]:
         return {"success": False, "error": "当前没有运行中的任务"}
 
+    # 检查是否强制停止
+    force = request and request.force
+
     stop_requested.set()
+
+    if force:
+        # 强制重置状态（用于卡死场景）
+        async with task_lock:
+            task_status["running"] = False
+            task_status["error"] = "任务被强制停止"
+            stop_requested.clear()
+        await broadcast_status("stopped", "任务已被强制停止")
+        return {"success": True, "message": "任务已被强制停止，状态已重置"}
+
     return {"success": True, "message": "已发送停止信号，任务将在当前批次完成后停止"}
 
 

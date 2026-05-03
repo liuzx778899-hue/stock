@@ -101,6 +101,21 @@ class StockBasicCollector(BaseCollector):
             self._save_collect_log(**log_entry)
             return {"success": False, "error": str(e)}
 
+    def _clean_encoding(self, text: str) -> str:
+        """清理文本中的编码乱码"""
+        if text is None or pd.isna(text):
+            return ""
+        text = str(text)
+        # 移除 UTF-8 替换字符和非法代理对字符
+        import re
+        # 移除替换字符
+        text = re.sub(r'�', '', text)
+        # 移除非法代理对字符
+        text = re.sub(r'[\ud800-\udfff]', '', text)
+        # 移除控制字符（保留换行和制表符）
+        text = re.sub(r'[\x00-\x08\x0b\x0c\x0e-\x1f]', '', text)
+        return text.strip()
+
     def _transform_data(self, df: pd.DataFrame) -> pd.DataFrame:
         """转换数据格式为标准格式"""
         if df is None or df.empty:
@@ -108,6 +123,11 @@ class StockBasicCollector(BaseCollector):
 
         # 标准化列名
         df = FieldMerger.normalize_columns(df)
+
+        # 清理编码问题列
+        for col in ['industry', 'area', 'name']:
+            if col in df.columns:
+                df[col] = df[col].apply(self._clean_encoding)
 
         # 确保 symbol 列存在
         if 'symbol' not in df.columns:
