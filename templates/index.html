@@ -635,7 +635,17 @@
             }
             if (pageName === 'settings') loadStats();
             if (pageName === 'logs') loadLogsList();
-            if (pageName === 'quality') loadQualityReport();
+            if (pageName === 'quality') {
+                // 日期选择器默认当天（第三十八轮）
+                const qDate = document.getElementById('quality-date');
+                if (qDate && !qDate.value) {
+                    const today = new Date();
+                    qDate.value = today.getFullYear() + '-' +
+                        String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(today.getDate()).padStart(2, '0');
+                }
+                loadQualityReport();
+            }
         }
 
         // ==================== 数据质量 (Q-4) ====================

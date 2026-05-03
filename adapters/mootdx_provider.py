@@ -175,7 +175,7 @@ class TdxProvider(DataProvider):
         if match:
             industry = match.group(1).strip()
             # 清理可能的乱码/后缀
-            industry = industry.replace("Ⅱ", "").replace("I", "").replace("Ⅲ", "").strip()
+            industry = re.sub(r'[ⅠⅡⅢⅡⅢ]+$', '', industry).strip()
             return industry if industry else None
         return None
 
