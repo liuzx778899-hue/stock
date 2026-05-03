@@ -123,7 +123,7 @@ class DataOrchestrator:
         """
         logger.info(f"采集 {symbol} K线数据 ({start_date} ~ {end_date})...")
 
-        providers = self.registry.get_providers_for(DataCategory.KLINE_DAILY)
+        providers = self.get_providers(DataCategory.KLINE_DAILY)
 
         for provider in providers:
             try:
@@ -199,7 +199,7 @@ class DataOrchestrator:
         """
         logger.info(f"采集实时行情 {'(全量)' if symbol is None else symbol}...")
 
-        providers = self.registry.get_providers_for(DataCategory.REALTIME_QUOTE)
+        providers = self.get_providers(DataCategory.REALTIME_QUOTE)
 
         for provider in providers:
             try:
@@ -217,7 +217,7 @@ class DataOrchestrator:
 
     def _fetch_with_fallback(self, category: DataCategory) -> Optional[pd.DataFrame]:
         """带降级的数据获取"""
-        providers = self.registry.get_providers_for(category)
+        providers = self.get_providers(category)
 
         for provider in providers:
             try:
@@ -266,7 +266,7 @@ class DataOrchestrator:
                 return df
 
         # 寻找能提供此字段的数据源
-        providers = self.registry.get_providers_for(category)
+        providers = self.get_providers(category)
 
         for provider in providers:
             try:
