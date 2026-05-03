@@ -242,13 +242,13 @@ class TdxProvider(DataProvider):
                 raw_bytes = bytes([ord(c) for c in text if ord(c) < 256])
                 if raw_bytes:
                     return raw_bytes.decode('gbk', errors='ignore')
-            except:
+            except Exception:
                 pass
 
             # 路径2: encode as cp1252 → decode as gbk
             try:
                 return text.encode('cp1252', errors='ignore').decode('gbk', errors='ignore')
-            except:
+            except Exception:
                 pass
 
             return text
@@ -355,12 +355,12 @@ class TdxProvider(DataProvider):
     def _is_bse_symbol(self, symbol: str) -> bool:
         """判断是否为北交所代码
 
-        北交所代码前缀: 83, 87, 92, 93 (以8或9开头的特定前缀)
+        北交所代码前缀: 83, 87, 92, 93 (北交所专用代码段)
         """
         if not symbol:
             return False
         code = symbol.zfill(6)
-        return code.startswith(('83', '87', '92', '93', '8'))
+        return code.startswith(('83', '87', '92', '93'))
 
     def _is_hs_symbol(self, symbol: str) -> bool:
         """判断是否为沪深代码
