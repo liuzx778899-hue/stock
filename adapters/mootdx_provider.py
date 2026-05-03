@@ -340,10 +340,13 @@ class TdxProvider(DataProvider):
                 area = str(row.get('省份', row.get('地区', '')))
 
                 if code:
+                    # 同时返回带 bj 前缀和不带前缀的格式，兼容数据库中的两种情况
                     if industry and industry != 'nan':
-                        industry_map[code] = industry
+                        industry_map[code] = industry          # 不带前缀: 920000
+                        industry_map[f'bj{code}'] = industry  # 带 bj 前缀: bj920000
                     if area and area != 'nan':
                         area_map[code] = area
+                        area_map[f'bj{code}'] = area
 
             logger.info(f"[mootdx] BSE API 获取: 行业 {len(industry_map)} 条, 地区 {len(area_map)} 条")
             return industry_map, area_map
