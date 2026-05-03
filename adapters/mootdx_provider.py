@@ -211,20 +211,39 @@ class TdxProvider(DataProvider):
     def _fix_encoding(self, text: str) -> str:
         """修复 mootdx F10 数据的编码问题
 
-        mootdx 内部可能将 GBK 数据误解码为 Latin-1，
+        mootdx 内部可能将 GBK 数据误解码，
         导致中文显示为乱码。尝试转回 GBK。
         """
         if not text or not isinstance(text, str):
             return text
         try:
-            # 检测是否为乱码：包含 Latin-1 范围内的字符但不包含常见中文
-            # 如果包含常见中文字符，则不需要修复
+            # 检测是否包含中文，如果有则不需要修复
             if any('一' <= c <= '鿿' for c in text):
                 return text
-            # 尝试 Latin-1 → GBK 转换
-            return text.encode('latin-1').decode('gbk')
-        except (UnicodeDecodeError, UnicodeEncodeError):
-            # 转换失败，返回原文本
+
+            # 检测是否为乱码：包含非 ASCII 且非中文的字符
+            has_garbled = any(ord(c) > 127 and not ('一' <= c <= '鿿') for c in text)
+            if not has_garbled:
+                return text
+
+            # 尝试多种编码修复路径
+            # 路径1: Unicode code points → GBK bytes → decode as GBK
+            try:
+                # 将 Unicode 字符转为原始字节（假设每个字符是一个字节）
+                raw_bytes = bytes([ord(c) for c in text if ord(c) < 256])
+                if raw_bytes:
+                    return raw_bytes.decode('gbk', errors='ignore')
+            except:
+                pass
+
+            # 路径2: encode as cp1252 → decode as gbk
+            try:
+                return text.encode('cp1252', errors='ignore').decode('gbk', errors='ignore')
+            except:
+                pass
+
+            return text
+        except Exception:
             return text
 
     def _fix_f10_encoding(self, data: dict) -> dict:
