@@ -223,6 +223,12 @@ class StockDailyKlineCollector(BaseCollector):
         df = FieldMerger.normalize_columns(df)
         symbol = ts_code.split('.')[0]
 
+        # 计算 pre_close（昨收 = 上一条记录的 close）
+        if 'close' in df.columns and 'pre_close' not in df.columns:
+            df = df.sort_values('trade_date')
+            df['pre_close'] = df['close'].shift(1)
+            df = df.sort_index()  # 恢复原始顺序
+
         session = self.Session()
         saved = 0
 
@@ -248,6 +254,7 @@ class StockDailyKlineCollector(BaseCollector):
                     high=record.get('high', 0),
                     low=record.get('low', 0),
                     close=record.get('close', 0),
+                    pre_close=record.get('pre_close'),
                     volume=record.get('volume', 0),
                     amount=record.get('amount', 0),
                     pct_chg=record.get('pct_chg', 0),
@@ -257,6 +264,7 @@ class StockDailyKlineCollector(BaseCollector):
                     high=record.get('high', 0),
                     low=record.get('low', 0),
                     close=record.get('close', 0),
+                    pre_close=record.get('pre_close'),
                     volume=record.get('volume', 0),
                     amount=record.get('amount', 0),
                     pct_chg=record.get('pct_chg', 0),
