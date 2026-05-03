@@ -28,11 +28,6 @@ def test_config():
     )
     config.retry = RetryConfig(max_retries=2, base_delay=0.01, max_delay=0.1)
     config.collector = CollectorConfig(thread_pool_size=2, batch_size=10, request_delay=0)
-    config.data_sources = [
-        DataSourceConfig(name="akshare_em", type="akshare", priority=1, enabled=True),
-        DataSourceConfig(name="akshare_sina", type="akshare", priority=2, enabled=True),
-        DataSourceConfig(name="akshare_tencent", type="akshare", priority=3, enabled=False),
-    ]
     return config
 
 

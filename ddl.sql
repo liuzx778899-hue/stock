@@ -96,3 +96,49 @@ CREATE TABLE IF NOT EXISTS collect_log (
     INDEX idx_collect_log_task_type (task_type),
     INDEX idx_collect_log_start_time (start_time)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据采集日志表';
+
+-- ============================================
+-- 5. 数据源配置表
+-- ============================================
+CREATE TABLE IF NOT EXISTS datasource_config (
+    id VARCHAR(50) NOT NULL COMMENT '数据源ID',
+    name VARCHAR(100) NOT NULL COMMENT '数据源名称',
+    type VARCHAR(20) NOT NULL COMMENT '类型',
+    api_url VARCHAR(500) COMMENT 'API地址',
+    api_key VARCHAR(500) COMMENT 'API密钥（加密存储）',
+    auth_type VARCHAR(20) DEFAULT 'none' COMMENT '认证类型',
+    priority INT DEFAULT 99 COMMENT '优先级（数字越小越优先）',
+    enabled TINYINT(1) DEFAULT 1 COMMENT '是否启用',
+    is_builtin TINYINT(1) DEFAULT 0 COMMENT '是否内置数据源',
+    description VARCHAR(500) COMMENT '描述',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (id),
+    INDEX idx_datasource_priority (priority),
+    INDEX idx_datasource_enabled (enabled)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据源配置表';
+
+-- ============================================
+-- 6. 必盈API Licence池表
+-- ============================================
+CREATE TABLE IF NOT EXISTS biying_licence (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    licence VARCHAR(100) NOT NULL COMMENT 'Licence密钥',
+    usage_count INT DEFAULT 0 COMMENT '使用次数',
+    error_count INT DEFAULT 0 COMMENT '错误次数',
+    is_current TINYINT(1) DEFAULT 0 COMMENT '是否当前使用',
+    is_available TINYINT(1) DEFAULT 1 COMMENT '是否可用',
+    added_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '添加时间',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_biying_licence (licence),
+    INDEX idx_biying_current (is_current)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='必盈API Licence池表';
+
+-- 初始化内置数据源配置
+INSERT INTO datasource_config (id, name, type, priority, enabled, is_builtin, description) VALUES
+('akshare_em', '东方财富', 'akshare', 1, 1, 1, 'AkShare东方财富数据源'),
+('akshare_sina', '新浪', 'akshare', 2, 1, 1, 'AkShare新浪数据源'),
+('akshare_tencent', '腾讯', 'akshare', 3, 1, 1, 'AkShare腾讯数据源'),
+('biying', '必盈API', 'http', 4, 1, 1, '必盈API付费数据源，需配置Licence')
+ON DUPLICATE KEY UPDATE name=VALUES(name);

@@ -116,7 +116,6 @@ class Config:
     retry: RetryConfig = None
     collector: CollectorConfig = None
     trading_hours: TradingHoursConfig = None
-    data_sources: List[DataSourceConfig] = None
 
     def __post_init__(self):
         # 清除代理环境变量，防止代理阻塞东方财富数据源连接
@@ -135,44 +134,6 @@ class Config:
             self.collector = CollectorConfig()
         if self.trading_hours is None:
             self.trading_hours = TradingHoursConfig()
-        if self.data_sources is None:
-            self.data_sources = self._get_default_data_sources()
-
-    def _get_default_data_sources(self) -> List[DataSourceConfig]:
-        """获取默认数据源配置"""
-        return [
-            DataSourceConfig(
-                name="akshare_em",
-                type="akshare",
-                priority=1,
-                enabled=True,
-                extra_params={"source": "em"}  # 东方财富
-            ),
-            DataSourceConfig(
-                name="akshare_sina",
-                type="akshare",
-                priority=2,
-                enabled=True,
-                extra_params={"source": "sina"}  # 新浪
-            ),
-            DataSourceConfig(
-                name="akshare_tencent",
-                type="akshare",
-                priority=3,
-                enabled=True,
-                extra_params={"source": "tencent"}  # 腾讯
-            ),
-        ]
-
-    def get_enabled_data_sources(self) -> List[DataSourceConfig]:
-        """获取启用的数据源列表（按优先级排序）"""
-        sources = [s for s in self.data_sources if s.enabled]
-        return sorted(sources, key=lambda x: x.priority)
-
-    def get_primary_data_source(self) -> DataSourceConfig:
-        """获取主数据源"""
-        sources = self.get_enabled_data_sources()
-        return sources[0] if sources else None
 
 
 # 全局配置实例

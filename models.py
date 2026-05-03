@@ -98,7 +98,7 @@ class CollectLog(Base):
         {'comment': '数据采集日志表'}
     )
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(BigInteger, primary_key=True, autoincrement=True)
     task_name = Column(String(50), nullable=False, comment='任务名称')
     task_type = Column(String(20), nullable=False, comment='任务类型（basic/kline/realtime）')
     start_time = Column(DateTime, nullable=False, comment='开始时间')

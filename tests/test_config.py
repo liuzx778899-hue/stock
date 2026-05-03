@@ -76,46 +76,6 @@ class TestConfig:
         assert cfg.database is not None
         assert cfg.retry is not None
         assert cfg.collector is not None
-        assert cfg.data_sources is not None
-        assert len(cfg.data_sources) == 3
-
-    def test_get_enabled_data_sources(self):
-        cfg = Config()
-        sources = cfg.get_enabled_data_sources()
-        assert len(sources) >= 1
-        assert all(s.enabled for s in sources)
-        # 验证按优先级排序
-        priorities = [s.priority for s in sources]
-        assert priorities == sorted(priorities)
-
-    def test_get_enabled_data_sources_with_disabled(self):
-        cfg = Config()
-        cfg.data_sources[1].enabled = False  # disable sina
-        sources = cfg.get_enabled_data_sources()
-        assert len(sources) == 2
-        assert sources[0].name == "akshare_em"
-        assert sources[1].name == "akshare_tencent"
-
-    def test_get_primary_data_source(self):
-        cfg = Config()
-        primary = cfg.get_primary_data_source()
-        assert primary is not None
-        assert primary.priority == 1
-
-    def test_get_primary_data_source_all_disabled(self):
-        cfg = Config()
-        for ds in cfg.data_sources:
-            ds.enabled = False
-        primary = cfg.get_primary_data_source()
-        assert primary is None  # 边界：没有可用数据源
-
-    def test_default_data_sources_have_required_fields(self):
-        cfg = Config()
-        for ds in cfg.data_sources:
-            assert ds.name
-            assert ds.type
-            assert ds.priority >= 1
-            assert isinstance(ds.enabled, bool)
 
 
 class TestMultiDatabaseConfig:

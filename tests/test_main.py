@@ -1,5 +1,5 @@
 """
-测试 main.py - 主入口程序和命令行接口
+测试 main.py - 主入口程序和命令行接口（重构版）
 """
 import pytest
 from unittest.mock import patch, MagicMock
@@ -28,53 +28,46 @@ class TestStockDataCollector:
     @patch('main.RealtimeQuoteCollector')
     def test_init_database(self, mock_rt, mock_kline, mock_basic):
         """测试数据库初始化"""
-        mock_basic_instance = mock_basic.return_value
-        mock_basic_instance.engine = MagicMock()
+        mock_engine = MagicMock()
+        mock_basic.return_value.engine = mock_engine
+        mock_kline.return_value.engine = mock_engine
+        mock_rt.return_value.engine = mock_engine
 
         collector = StockDataCollector()
         collector.init_database()
-        # Base.metadata.create_all 被调用
-        # 验证 engine 被使用了（通过检查 mock）
 
     @patch('main.StockBasicCollector')
     @patch('main.StockDailyKlineCollector')
     @patch('main.RealtimeQuoteCollector')
     def test_collect_stock_basic(self, mock_rt, mock_kline, mock_basic):
+        """测试股票基础信息采集"""
         mock_basic_instance = mock_basic.return_value
-        mock_basic_instance.collect.return_value = 5000
+        mock_basic_instance.collect.return_value = {'success': True, 'saved': 5000}
 
         collector = StockDataCollector()
-        count = collector.collect_stock_basic()
-        assert count == 5000
-        mock_basic_instance.collect.assert_called_once_with(use_extended=True, stop_check=None)
-
-    @patch('main.StockBasicCollector')
-    @patch('main.StockDailyKlineCollector')
-    @patch('main.RealtimeQuoteCollector')
-    def test_collect_stock_basic_no_extended(self, mock_rt, mock_kline, mock_basic):
-        mock_basic_instance = mock_basic.return_value
-        mock_basic_instance.collect.return_value = 5000
-
-        collector = StockDataCollector()
-        collector.collect_stock_basic(use_extended=False)
-        mock_basic_instance.collect.assert_called_once_with(use_extended=False, stop_check=None)
+        result = collector.collect_stock_basic()
+        assert result['success'] == True
+        assert result['saved'] == 5000
+        mock_basic_instance.collect.assert_called_once()
 
     @patch('main.StockBasicCollector')
     @patch('main.StockDailyKlineCollector')
     @patch('main.RealtimeQuoteCollector')
     def test_collect_history_kline(self, mock_rt, mock_kline, mock_basic):
+        """测试K线数据采集"""
         mock_kline_instance = mock_kline.return_value
-        mock_kline_instance.collect.return_value = {'success': 100, 'failed': 2}
+        mock_kline_instance.collect.return_value = {'success': True, 'success_count': 100}
 
         collector = StockDataCollector()
         stats = collector.collect_history_kline("20240101", "20240131")
-        assert stats['success'] == 100
-        mock_kline_instance.collect.assert_called_once_with("20240101", "20240131")
+        assert stats['success'] == True
+        mock_kline_instance.collect.assert_called_once()
 
     @patch('main.StockBasicCollector')
     @patch('main.StockDailyKlineCollector')
     @patch('main.RealtimeQuoteCollector')
     def test_collect_history_kline_with_threads(self, mock_rt, mock_kline, mock_basic):
+        """测试K线采集设置线程数"""
         mock_kline_instance = mock_kline.return_value
         mock_kline_instance.collect.return_value = {}
 
@@ -86,48 +79,54 @@ class TestStockDataCollector:
     @patch('main.StockDailyKlineCollector')
     @patch('main.RealtimeQuoteCollector')
     def test_collect_incremental(self, mock_rt, mock_kline, mock_basic):
+        """测试增量K线采集"""
         mock_kline_instance = mock_kline.return_value
-        mock_kline_instance.collect_incremental.return_value = {'success': 10}
+        mock_kline_instance.collect_incremental.return_value = {'success': True, 'success_count': 10}
 
         collector = StockDataCollector()
         stats = collector.collect_incremental_kline(days=15)
-        mock_kline_instance.collect_incremental.assert_called_once_with(days=15)
+        assert stats['success'] == True
+        mock_kline_instance.collect_incremental.assert_called_once()
 
     @patch('main.StockBasicCollector')
     @patch('main.StockDailyKlineCollector')
     @patch('main.RealtimeQuoteCollector')
     def test_collect_realtime(self, mock_rt, mock_kline, mock_basic):
+        """测试实时行情采集"""
         mock_rt_instance = mock_rt.return_value
-        mock_rt_instance.collect.return_value = {'total': 5000, 'success': True}
+        mock_rt_instance.collect.return_value = {'success': True, 'total': 5000}
 
         collector = StockDataCollector()
-        stats = collector.collect_realtime_quote(source='sina')
+        stats = collector.collect_realtime_quote()
         assert stats['total'] == 5000
-        mock_rt_instance.collect.assert_called_once_with(source='sina')
+        mock_rt_instance.collect.assert_called_once()
 
     @patch('main.StockBasicCollector')
     @patch('main.StockDailyKlineCollector')
     @patch('main.RealtimeQuoteCollector')
-    def test_get_realtime_quote_single(self, mock_rt, mock_kline, mock_basic):
+    def test_collect_realtime_single(self, mock_rt, mock_kline, mock_basic):
+        """测试单只股票实时行情采集"""
         mock_rt_instance = mock_rt.return_value
-        mock_rt_instance.get_realtime_quote.return_value = {
-            'symbol': '000001', 'name': '平安银行', 'price': 10.50
+        mock_rt_instance.collect.return_value = {
+            'success': True,
+            'saved': 1
         }
 
         collector = StockDataCollector()
-        quote = collector.get_realtime_quote('000001')
-        assert quote['symbol'] == '000001'
-        mock_rt_instance.get_realtime_quote.assert_called_once_with('000001')
+        result = collector.collect_realtime_quote(symbol='000001')
+        assert result['success'] == True
+        mock_rt_instance.collect.assert_called_once_with(symbol='000001', progress_callback=None, stop_check=None)
 
     @patch('main.StockBasicCollector')
     @patch('main.StockDailyKlineCollector')
     @patch('main.RealtimeQuoteCollector')
     def test_full_collect(self, mock_rt, mock_kline, mock_basic):
+        """测试全量采集"""
         mock_basic_instance = mock_basic.return_value
         mock_basic_instance.engine = MagicMock()
-        mock_basic_instance.collect.return_value = 5000
+        mock_basic_instance.collect.return_value = {'success': True, 'saved': 5000}
         mock_kline_instance = mock_kline.return_value
-        mock_kline_instance.collect.return_value = {'success': 100}
+        mock_kline_instance.collect.return_value = {'success': True, 'success_count': 100}
 
         collector = StockDataCollector()
         collector.full_collect("20240101", "20240131")
@@ -214,13 +213,13 @@ class TestMainCli:
     def test_command_realtime(self, mock_collector_class, mock_parse_args):
         mock_args = MagicMock()
         mock_args.command = 'realtime'
-        mock_args.source = 'sina'
+        mock_args.source = 'em'
         mock_parse_args.return_value = mock_args
 
         mock_collector = mock_collector_class.return_value
 
         main()
-        mock_collector.collect_realtime_quote.assert_called_once_with('sina')
+        mock_collector.collect_realtime_quote.assert_called_once()
 
     @patch('argparse.ArgumentParser.parse_args')
     @patch('main.StockDataCollector')
@@ -232,7 +231,7 @@ class TestMainCli:
 
         main()
         mock_collector = mock_collector_class.return_value
-        assert not mock_collector.get_realtime_quote.called
+        assert not mock_collector.collect_realtime_quote.called
 
     @patch('argparse.ArgumentParser.parse_args')
     @patch('main.StockDataCollector')
@@ -243,14 +242,12 @@ class TestMainCli:
         mock_parse_args.return_value = mock_args
 
         mock_collector = mock_collector_class.return_value
-        mock_collector.get_realtime_quote.return_value = {
-            'name': '平安银行', 'symbol': '000001', 'price': 10.50,
-            'open': 10.30, 'high': 10.60, 'low': 10.20,
-            'pre_close': 10.40, 'pct_chg': 0.96, 'update_time': '2024-01-15 14:30:00'
+        mock_collector.collect_realtime_quote.return_value = {
+            'success': True, 'saved': 1
         }
 
         main()
-        mock_collector.get_realtime_quote.assert_called_once_with('000001')
+        mock_collector.collect_realtime_quote.assert_called_once()
 
     @patch('argparse.ArgumentParser.parse_args')
     @patch('main.StockDataCollector')

@@ -90,6 +90,9 @@
             <a class="nav-item" data-page="settings" onclick="showPage('settings')">
                 <span class="nav-item-icon">⚙️</span>系统设置
             </a>
+            <a class="nav-item" data-page="logs" onclick="showPage('logs')">
+                <span class="nav-item-icon">📋</span>日志查看
+            </a>
         </nav>
     </div>
 
@@ -97,6 +100,23 @@
     <div class="main-content">
         <!-- 数据采集页面 -->
         <div id="page-collector" class="page active">
+            <!-- 数据源选择 -->
+            <div class="card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <div style="display: flex; align-items: center; gap: 16px;">
+                        <span style="font-weight: 500;">📊 数据源：</span>
+                        <select id="forced-datasource" onchange="setForcedDataSource()" style="padding: 8px 16px; border-radius: 6px; border: none; background: white; color: #333; font-size: 14px; cursor: pointer;">
+                            <option value="">自动选择（按优先级）</option>
+                        </select>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 8px;">
+                        <span id="current-datasource" style="background: rgba(255,255,255,0.2); padding: 6px 12px; border-radius: 4px; font-size: 13px;">
+                            当前：加载中...
+                        </span>
+                    </div>
+                </div>
+            </div>
+
             <!-- 任务状态 -->
             <div class="card">
                 <h2>任务状态</h2>
@@ -182,7 +202,7 @@
             <div class="card">
                 <h2>股票列表 <span id="stocks-total" style="font-size: 14px; color: #888; font-weight: normal;"></span></h2>
                 <div class="form-group" style="max-width: 300px; margin-bottom: 16px;">
-                    <input type="text" id="stock-search" placeholder="搜索股票代码或名称..." oninput="filterStocks()">
+                    <input type="text" id="stock-search" placeholder="搜索股票代码/名称/行业/地区..." oninput="searchStocks()">
                 </div>
                 <div style="max-height: 600px; overflow-y: auto;">
                     <table class="stocks-table">
@@ -201,9 +221,50 @@
         <div id="page-datasource" class="page">
             <div class="card">
                 <h2>数据源管理</h2>
-                <p style="color: #666; margin-bottom: 16px; font-size: 14px;">查看当前数据采集接口，支持添加自定义数据源（VIP/券商私有接口）</p>
+                <p style="color: #666; margin-bottom: 16px; font-size: 14px;">
+                    查看当前数据采集接口，支持添加自定义数据源（VIP/券商私有接口）。
+                    <strong style="color: #1890ff;">优先级数字越小越优先</strong>，系统会按优先级顺序尝试数据源。
+                </p>
+
                 <div id="datasource-list">
                     加载中...
+                </div>
+            </div>
+
+            <!-- 必盈 Licence 配置模态框 -->
+            <div id="biying-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; padding: 24px; min-width: 500px; max-width: 80%;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 style="margin: 0; font-size: 18px;">🔑 必盈 API Licence 配置</h3>
+                        <button onclick="closeBiyingModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #888;">✕</button>
+                    </div>
+                    <p style="color: #666; margin-bottom: 16px; font-size: 13px;">
+                        支持多个 Licence 自动切换，当一个额度用完自动切换到下一个。
+                        <a href="https://www.biyingapi.com/get-free-cert.html" target="_blank" style="color: #667eea;">免费获取 Licence</a>
+                    </p>
+                    <div style="margin-bottom: 16px;">
+                        <div class="form-group" style="margin-bottom: 8px;">
+                            <label style="font-size: 13px;">添加新 Licence</label>
+                            <div style="display: flex; gap: 12px;">
+                                <input type="text" id="biying-licence" placeholder="输入必盈 API Licence" style="flex: 1; padding: 8px 10px;">
+                                <button class="btn btn-primary" style="padding: 8px 16px;" onclick="addBiyingLicence()">添加</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div style="margin-bottom: 16px;">
+                        <h4 style="font-size: 13px; margin-bottom: 8px; color: #555;">当前 Licence 池状态</h4>
+                        <div id="biying-status" style="background: #f8f9fa; border-radius: 6px; padding: 10px; border: 1px solid #eee; max-height: 200px; overflow-y: auto;">
+                            加载中...
+                        </div>
+                    </div>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <button class="btn" style="background: #52c41a; color: white; padding: 8px 16px;" onclick="testBiyingAPI()">测试连接</button>
+                        <button class="btn" style="background: #888; color: white; padding: 8px 16px;" onclick="closeBiyingModal()">关闭</button>
+                    </div>
+                    <p style="font-size: 12px; color: #888; margin-top: 12px;">
+                        💡 当一个 Licence 配额用完或连续错误 3 次，系统会自动切换到下一个
+                    </p>
+                    <div id="biying-result" style="margin-top: 12px; font-size: 13px;"></div>
                 </div>
             </div>
 
@@ -307,6 +368,51 @@
                 </div>
             </div>
         </div>
+
+        <!-- 日志查看页面 -->
+        <div id="page-logs" class="page">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2>📋 日志文件列表</h2>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <span style="font-size: 13px; color: #666;">清理</span>
+                        <input type="number" id="cleanup-days" value="3" min="1" max="365" style="width: 60px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;">
+                        <span style="font-size: 13px; color: #666;">天前的日志</span>
+                        <button class="btn btn-danger" onclick="cleanupLogs()" style="padding: 6px 12px;">清理日志</button>
+                    </div>
+                </div>
+                <div id="logs-list" style="margin-bottom: 16px;">
+                    加载中...
+                </div>
+                <div id="cleanup-result" style="margin-top: 12px; font-size: 13px;"></div>
+            </div>
+
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2>📄 日志内容</h2>
+                    <div style="display: flex; gap: 12px; align-items: center;">
+                        <select id="log-file-select" style="padding: 6px 12px; border-radius: 4px; border: 1px solid #ddd;">
+                            <option value="">选择日志文件</option>
+                        </select>
+                        <button class="btn btn-primary" onclick="loadSelectedLog()">加载</button>
+                        <button class="btn" style="background: #888; color: white;" onclick="refreshCurrentLog()">刷新</button>
+                    </div>
+                </div>
+                <div style="margin-bottom: 12px; display: flex; gap: 12px; align-items: center;">
+                    <input type="text" id="log-search" placeholder="搜索关键词..." style="flex: 1; padding: 8px 12px; border: 1px solid #ddd; border-radius: 4px;">
+                    <button class="btn" style="background: #1890ff; color: white;" onclick="searchLogs()">搜索</button>
+                </div>
+                <div id="log-content" style="height: 500px; overflow-y: auto; background: #1e1e1e; border-radius: 8px; padding: 12px; font-family: 'Consolas', monospace; font-size: 12px; color: #ddd;">
+                    <p style="color: #888; text-align: center;">请选择日志文件查看内容</p>
+                </div>
+                <div style="margin-top: 12px; display: flex; justify-content: space-between; align-items: center;">
+                    <span id="log-info" style="color: #888; font-size: 12px;"></span>
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn" style="padding: 4px 12px; font-size: 12px; background: #52c41a; color: white;" onclick="loadMoreLogs()">加载更多</button>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -315,6 +421,73 @@
         let autoCollectTimer = null;
         let autoCollectEnabled = false;
         let allStocks = [];
+        let currentForcedSource = null;
+
+        // ==================== 数据源控制 ====================
+        async function loadDataSourceOptions() {
+            try {
+                const resp = await fetch('/api/datasource/options');
+                const data = await resp.json();
+                const select = document.getElementById('forced-datasource');
+                if (select && data.sources) {
+                    select.innerHTML = '<option value="">自动选择（按优先级）</option>' +
+                        data.sources.map(s => `<option value="${s.id}">${s.name} (优先级: ${s.priority})</option>`).join('');
+                }
+                // 恢复之前的选择
+                if (currentForcedSource) {
+                    select.value = currentForcedSource;
+                }
+            } catch (e) {
+                console.error('加载数据源选项失败:', e);
+            }
+        }
+
+        async function loadCurrentDataSource() {
+            try {
+                const resp = await fetch('/api/datasource/current');
+                const data = await resp.json();
+                const el = document.getElementById('current-datasource');
+                if (el) {
+                    if (data.is_forced) {
+                        el.textContent = `当前：${data.current_source}（强制）`;
+                        el.style.background = 'rgba(255,200,0,0.3)';
+                    } else {
+                        el.textContent = `当前：${data.current_source}`;
+                        el.style.background = 'rgba(255,255,255,0.2)';
+                    }
+                    currentForcedSource = data.forced_source;
+                    // 更新下拉框选择
+                    const select = document.getElementById('forced-datasource');
+                    if (select) {
+                        select.value = data.forced_source || '';
+                    }
+                }
+            } catch (e) {
+                console.error('获取当前数据源失败:', e);
+            }
+        }
+
+        async function setForcedDataSource() {
+            const select = document.getElementById('forced-datasource');
+            const sourceName = select.value || null;
+            try {
+                const resp = await fetch('/api/datasource/force', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ source_name: sourceName })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    currentForcedSource = sourceName;
+                    addLog('info', data.message);
+                    loadCurrentDataSource();
+                } else {
+                    alert(data.message);
+                }
+            } catch (e) {
+                alert('设置数据源失败: ' + e.message);
+            }
+        }
 
         // 页面切换
         function showPage(pageName) {
@@ -327,6 +500,7 @@
             if (pageName === 'stocks') loadStocks();
             if (pageName === 'datasource') loadDataSources();
             if (pageName === 'settings') loadStats();
+            if (pageName === 'logs') loadLogsList();
         }
 
         // WebSocket 初始化
@@ -347,6 +521,8 @@
         function handleWebSocketMessage(data) {
             if (data.type === 'progress') {
                 updateProgress(data);
+                // 进度更新时刷新当前数据源显示
+                loadCurrentDataSource();
             } else if (data.type === 'completed') {
                 addLog('success', data.message);
                 taskRunning = false;
@@ -388,12 +564,39 @@
             entry.textContent = `[${time}] ${message}`;
             container.appendChild(entry);
             container.scrollTop = container.scrollHeight;
+
+            // 持久化到 localStorage
+            try {
+                let logs = JSON.parse(localStorage.getItem('collector_logs') || '[]');
+                logs.push({ type, message, time });
+                // 最多保留 100 条日志
+                if (logs.length > 100) logs = logs.slice(-100);
+                localStorage.setItem('collector_logs', JSON.stringify(logs));
+            } catch (e) {
+                console.error('保存日志失败:', e);
+            }
+        }
+
+        function loadLogs() {
+            // 首次加载时清空日志显示框（不再从 localStorage 恢复）
+            const container = document.getElementById('log-container');
+            container.innerHTML = '<div class="log-entry" style="color: #888;">等待采集任务...</div>';
+            // 清空 localStorage 中的历史日志
+            localStorage.removeItem('collector_logs');
+        }
+
+        function clearLogs() {
+            // 清空日志
+            localStorage.removeItem('collector_logs');
+            document.getElementById('log-container').innerHTML = '';
         }
 
         function updateButtons() {
+            console.log('updateButtons called, taskRunning =', taskRunning);
             const buttons = ['btn-basic', 'btn-kline', 'btn-incremental', 'btn-realtime'];
             buttons.forEach(id => {
                 const btn = document.getElementById(id);
+                console.log('Button', id, 'found:', !!btn, 'disabled:', taskRunning);
                 if (btn) btn.disabled = taskRunning;
             });
             const stopBtn = document.getElementById('btn-stop');
@@ -418,6 +621,7 @@
             try {
                 const resp = await fetch('/api/status');
                 const data = await resp.json();
+                console.log('refreshStatus response:', data);
                 taskRunning = data.running;
 
                 document.getElementById('status-running').textContent = data.running ? '运行中' : '空闲';
@@ -432,7 +636,7 @@
 
         async function loadStocks() {
             try {
-                const resp = await fetch('/api/stocks');
+                const resp = await fetch('/api/stocks?limit=500');
                 const data = await resp.json();
                 document.getElementById('stocks-total').textContent = `(共 ${data.total} 只)`;
                 allStocks = data.stocks || [];
@@ -442,24 +646,39 @@
             }
         }
 
+        // 搜索防抖
+        let searchTimeout = null;
+        async function searchStocks() {
+            const keyword = document.getElementById('stock-search').value.trim();
+
+            // 防抖：延迟 300ms 执行
+            if (searchTimeout) clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(async () => {
+                try {
+                    const url = keyword
+                        ? `/api/stocks?search=${encodeURIComponent(keyword)}&limit=500`
+                        : `/api/stocks?limit=500`;
+                    const resp = await fetch(url);
+                    const data = await resp.json();
+                    document.getElementById('stocks-total').textContent = keyword
+                        ? `(搜索结果 ${data.total} 只)`
+                        : `(共 ${data.total} 只)`;
+                    renderStocks(data.stocks || []);
+                } catch (e) {
+                    console.error('搜索失败', e);
+                }
+            }, 300);
+        }
+
         function renderStocks(stocks) {
             const tbody = document.getElementById('stocks-table');
             if (stocks.length > 0) {
                 tbody.innerHTML = stocks.map(s =>
-                    `<tr><td>${s.ts_code}</td><td>${s.name}</td><td>${s.industry || '-'}</td><td>${s.area || '-'}</td></tr>`
+                    `<tr><td>${s.symbol || s.ts_code}</td><td>${s.name}</td><td>${s.industry || '-'}</td><td>${s.area || '-'}</td></tr>`
                 ).join('');
             } else {
                 tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #888;">暂无数据，请先采集股票基础信息</td></tr>';
             }
-        }
-
-        function filterStocks() {
-            const keyword = document.getElementById('stock-search').value.toLowerCase();
-            const filtered = allStocks.filter(s =>
-                s.ts_code.toLowerCase().includes(keyword) ||
-                (s.name && s.name.toLowerCase().includes(keyword))
-            );
-            renderStocks(filtered);
         }
 
         async function loadStats() {
@@ -476,7 +695,10 @@
         }
 
         async function startCollectBasic() {
-            if (taskRunning) return;
+            if (taskRunning) {
+                addLog('info', '已有任务在运行中，请等待完成或停止当前任务');
+                return;
+            }
             addLog('info', '启动股票基础信息采集...');
             try {
                 const resp = await fetch('/api/collect/basic', { method: 'POST' });
@@ -485,6 +707,7 @@
                     taskRunning = true;
                     updateButtons();
                     addLog('info', data.message);
+                    setTimeout(refreshStatus, 500);
                 } else {
                     addLog('error', data.error);
                 }
@@ -494,7 +717,10 @@
         }
 
         async function startCollectKline() {
-            if (taskRunning) return;
+            if (taskRunning) {
+                addLog('info', '已有任务在运行中，请等待完成或停止当前任务');
+                return;
+            }
             const startDate = document.getElementById('kline-start').value;
             const endDate = document.getElementById('kline-end').value;
             const threads = document.getElementById('kline-threads').value;
@@ -511,6 +737,7 @@
                     taskRunning = true;
                     updateButtons();
                     addLog('info', data.message);
+                    setTimeout(refreshStatus, 500);
                 } else {
                     addLog('error', data.error);
                 }
@@ -520,7 +747,10 @@
         }
 
         async function startCollectIncremental() {
-            if (taskRunning) return;
+            if (taskRunning) {
+                addLog('info', '已有任务在运行中，请等待完成或停止当前任务');
+                return;
+            }
             const days = document.getElementById('incremental-days').value;
             addLog('info', `启动增量采集: 最近 ${days} 天`);
 
@@ -535,6 +765,8 @@
                     taskRunning = true;
                     updateButtons();
                     addLog('info', data.message);
+                    // 立即刷新状态确保同步
+                    setTimeout(refreshStatus, 500);
                 } else {
                     addLog('error', data.error);
                 }
@@ -544,7 +776,10 @@
         }
 
         async function startCollectRealtime() {
-            if (taskRunning) return;
+            if (taskRunning) {
+                addLog('info', '已有任务在运行中，请等待完成或停止当前任务');
+                return;
+            }
             addLog('info', '启动实时行情采集...');
 
             try {
@@ -554,6 +789,7 @@
                     taskRunning = true;
                     updateButtons();
                     addLog('info', data.message);
+                    setTimeout(refreshStatus, 500);
                 } else {
                     addLog('error', data.error);
                 }
@@ -714,16 +950,32 @@
                 const container = document.getElementById('datasource-list');
 
                 if (data.sources && data.sources.length > 0) {
-                    container.innerHTML = data.sources.map(s => `
-                        <div class="datasource-item ${s.builtin ? 'builtin' : 'custom'}">
-                            <div>
-                                <span style="font-weight: 500;">${s.name}</span>
-                                <span style="font-size: 12px; color: #888; margin-left: 8px;">优先级: ${s.priority}</span>
-                                ${s.builtin ? '<span style="font-size: 11px; background: #e6e6e6; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">内置</span>' : ''}
-                                ${s.enabled ? '' : '<span style="font-size: 11px; background: #ffccc7; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">已禁用</span>'}
+                    container.innerHTML = data.sources.map((s, index) => `
+                        <div class="datasource-item ${s.builtin ? 'builtin' : 'custom'}" data-id="${s.id}">
+                            <div style="flex: 1;">
+                                <div>
+                                    <span style="font-weight: 500;">${s.name}</span>
+                                    <span style="font-size: 12px; color: #888; margin-left: 8px;">
+                                        优先级: <strong style="color: ${s.priority !== s.default_priority ? '#1890ff' : '#333'};">${s.priority}</strong>
+                                        ${s.builtin && s.priority !== s.default_priority ? `<span style="color: #888; font-size: 11px;">(默认 ${s.default_priority})</span>` : ''}
+                                    </span>
+                                    ${s.builtin ? '<span style="font-size: 11px; background: #e6e6e6; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">内置</span>' : '<span style="font-size: 11px; background: #fff7e6; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">自定义</span>'}
+                                    ${s.enabled ? '' : '<span style="font-size: 11px; background: #ffccc7; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">已禁用</span>'}
+                                    ${index === 0 ? '<span style="font-size: 11px; background: #52c41a; color: white; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">首选</span>' : ''}
+                                </div>
+                                <div style="font-size: 12px; color: #888; margin-top: 4px;">
+                                    ${s.type} ${s.api_url ? '- ' + s.api_url.substring(0, 40) + (s.api_url.length > 40 ? '...' : '') : ''}
+                                </div>
                             </div>
-                            <div style="font-size: 12px; color: #888;">
-                                ${s.type} ${s.api_url ? '- ' + s.api_url.substring(0, 30) + '...' : ''}
+                            <div style="display: flex; gap: 8px; align-items: center;">
+                                ${s.builtin ? `
+                                    <input type="number" id="priority-${s.id}" value="${s.priority}" min="1" max="100" style="width: 60px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateBuiltinPriority('${s.id}', this.value)">
+                                    ${s.priority !== s.default_priority ? `<button class="btn" style="padding: 4px 8px; font-size: 11px; background: #888; color: white;" onclick="resetBuiltinPriority('${s.id}')">重置</button>` : ''}
+                                    ${s.id === 'biying' ? `<button class="btn" style="padding: 4px 12px; font-size: 12px; background: #1890ff; color: white;" onclick="openBiyingModal()">配置Licence</button>` : ''}
+                                ` : `
+                                    <button class="btn" style="padding: 4px 12px; font-size: 12px; background: #1890ff; color: white;" onclick="editDataSource('${s.id}')">编辑</button>
+                                    <button class="btn" style="padding: 4px 12px; font-size: 12px; background: #ff4d4f; color: white;" onclick="deleteDataSource('${s.id}')">删除</button>
+                                `}
                             </div>
                         </div>
                     `).join('');
@@ -732,6 +984,160 @@
                 }
             } catch (e) {
                 document.getElementById('datasource-list').innerHTML = '<p style="color: #ff4d4f;">加载数据源失败: ' + e.message + '</p>';
+            }
+        }
+
+        let editingDataSourceId = null;  // 当前正在编辑的数据源ID
+
+        async function deleteDataSource(sourceId) {
+            if (!confirm('确定要删除该数据源吗？')) return;
+
+            try {
+                const resp = await fetch('/api/datasource/' + sourceId, { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.success) {
+                    // 如果删除的是正在编辑的数据源，重置按钮
+                    if (editingDataSourceId === sourceId) {
+                        resetAddButton();
+                        editingDataSourceId = null;
+                    }
+                    loadDataSources();
+                } else {
+                    alert(data.message);
+                }
+            } catch (e) {
+                alert('删除失败: ' + e.message);
+            }
+        }
+
+        function resetAddButton() {
+            const addBtn = document.querySelector('button[onclick^="updateDataSource"], button[onclick^="addCustomDataSource"]');
+            if (addBtn) {
+                addBtn.textContent = '添加数据源';
+                addBtn.setAttribute('onclick', 'addCustomDataSource()');
+            }
+            // 清空表单
+            document.getElementById('ds-name').value = '';
+            document.getElementById('ds-url').value = '';
+            document.getElementById('ds-key').value = '';
+            document.getElementById('ds-priority').value = '99';
+            editingDataSourceId = null;
+        }
+
+        async function updateBuiltinPriority(sourceName, priority) {
+            const value = parseInt(priority);
+            if (isNaN(value) || value < 1 || value > 100) {
+                alert('优先级必须是 1-100 之间的数字');
+                return;
+            }
+            try {
+                const resp = await fetch(`/api/datasource/builtin/${sourceName}/priority`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ priority: value })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    loadDataSources();  // 刷新列表以重新排序
+                } else {
+                    alert(data.message);
+                }
+            } catch (e) {
+                alert('更新优先级失败: ' + e.message);
+            }
+        }
+
+        async function resetBuiltinPriority(sourceName) {
+            try {
+                const resp = await fetch(`/api/datasource/builtin/${sourceName}/reset`, {
+                    method: 'POST'
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    loadDataSources();
+                } else {
+                    alert(data.message);
+                }
+            } catch (e) {
+                alert('重置优先级失败: ' + e.message);
+            }
+        }
+
+        async function editDataSource(sourceId) {
+            try {
+                // 获取数据源列表找到要编辑的数据源
+                const resp = await fetch('/api/datasource/list');
+                const data = await resp.json();
+                const source = data.sources.find(s => s.id === sourceId);
+
+                if (!source) {
+                    alert('数据源不存在');
+                    resetAddButton();
+                    return;
+                }
+
+                // 记录正在编辑的数据源ID
+                editingDataSourceId = sourceId;
+
+                // 填充表单
+                document.getElementById('ds-name').value = source.name || '';
+                document.getElementById('ds-type').value = source.type || 'http';
+                document.getElementById('ds-url').value = source.api_url || '';
+                document.getElementById('ds-auth').value = source.auth_type || 'none';
+                document.getElementById('ds-priority').value = source.priority || 99;
+
+                // 更改按钮文字和功能
+                const addBtn = document.querySelector('button[onclick="addCustomDataSource()"]');
+                if (addBtn) {
+                    addBtn.textContent = '保存修改';
+                    addBtn.setAttribute('onclick', `updateDataSource('${sourceId}')`);
+                }
+
+                // 滚动到表单
+                document.getElementById('ds-name').scrollIntoView({ behavior: 'smooth' });
+            } catch (e) {
+                alert('获取数据源信息失败: ' + e.message);
+            }
+        }
+
+        async function updateDataSource(sourceId) {
+            const resultEl = document.getElementById('ds-result');
+            resultEl.textContent = '更新中...';
+            resultEl.style.color = '#888';
+
+            const updates = {
+                name: document.getElementById('ds-name').value,
+                type: document.getElementById('ds-type').value,
+                api_url: document.getElementById('ds-url').value,
+                api_key: document.getElementById('ds-key').value || null,
+                auth_type: document.getElementById('ds-auth').value,
+                priority: parseInt(document.getElementById('ds-priority').value) || 99,
+                enabled: true
+            };
+
+            try {
+                const resp = await fetch('/api/datasource/' + sourceId, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(updates)
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    resultEl.textContent = '更新成功！';
+                    resultEl.style.color = '#52c41a';
+                    resetAddButton();
+                    loadDataSources();
+                } else {
+                    resultEl.textContent = data.message;
+                    resultEl.style.color = '#ff4d4f';
+                    // 如果数据源不存在，重置按钮
+                    if (data.message.includes('不存在')) {
+                        resetAddButton();
+                    }
+                }
+            } catch (e) {
+                resultEl.textContent = '更新失败: ' + e.message;
+                resultEl.style.color = '#ff4d4f';
             }
         }
 
@@ -823,11 +1229,341 @@
         setInterval(refreshStatus, 5000);
         setInterval(checkMarketStatus, 10000);
 
+        // ==================== 日志管理 ====================
+        let currentLogFile = '';
+        let logOffset = 0;
+        let logLinesPerLoad = 200;
+
+        async function cleanupLogs() {
+            const days = parseInt(document.getElementById('cleanup-days').value) || 3;
+            if (days < 1 || days > 365) {
+                alert('请输入 1-365 之间的天数');
+                return;
+            }
+            if (!confirm(`确定要清理 ${days} 天前的日志文件吗？此操作不可撤销！`)) {
+                return;
+            }
+
+            const resultEl = document.getElementById('cleanup-result');
+            resultEl.textContent = '清理中...';
+            resultEl.style.color = '#888';
+
+            try {
+                const resp = await fetch('/api/logs/cleanup', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ days })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    resultEl.textContent = `✅ ${data.message}`;
+                    resultEl.style.color = '#52c41a';
+                    loadLogsList();  // 刷新列表
+                } else {
+                    resultEl.textContent = `❌ ${data.message}`;
+                    resultEl.style.color = '#ff4d4f';
+                }
+            } catch (e) {
+                resultEl.textContent = `❌ 清理失败: ${e.message}`;
+                resultEl.style.color = '#ff4d4f';
+            }
+        }
+
+        async function loadLogsList() {
+            try {
+                const resp = await fetch('/api/logs/list');
+                const data = await resp.json();
+                const container = document.getElementById('logs-list');
+                const select = document.getElementById('log-file-select');
+
+                if (data.logs && data.logs.length > 0) {
+                    container.innerHTML = data.logs.map(log => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: #f8f9fa; border-radius: 6px; margin-bottom: 4px; cursor: pointer;" onclick="viewLogFile('${log.name}')">
+                            <div>
+                                <span style="font-weight: 500;">${log.name}</span>
+                                <span style="font-size: 12px; color: #888; margin-left: 8px;">${(log.size / 1024).toFixed(1)} KB</span>
+                            </div>
+                            <div style="font-size: 12px; color: #888;">${log.modified}</div>
+                        </div>
+                    `).join('');
+
+                    // 更新下拉框
+                    select.innerHTML = '<option value="">选择日志文件</option>' +
+                        data.logs.map(log => `<option value="${log.name}">${log.name}</option>`).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #888; text-align: center;">暂无日志文件</p>';
+                    select.innerHTML = '<option value="">暂无日志文件</option>';
+                }
+            } catch (e) {
+                document.getElementById('logs-list').innerHTML = '<p style="color: #ff4d4f;">加载失败: ' + e.message + '</p>';
+            }
+        }
+
+        async function viewLogFile(filename) {
+            currentLogFile = filename;
+            logOffset = 0;
+            document.getElementById('log-file-select').value = filename;
+            await loadLogContent();
+        }
+
+        async function loadSelectedLog() {
+            const filename = document.getElementById('log-file-select').value;
+            if (!filename) {
+                alert('请选择日志文件');
+                return;
+            }
+            currentLogFile = filename;
+            logOffset = 0;
+            await loadLogContent();
+        }
+
+        async function loadLogContent() {
+            if (!currentLogFile) return;
+
+            const container = document.getElementById('log-content');
+            container.innerHTML = '<p style="color: #888; text-align: center;">加载中...</p>';
+
+            try {
+                const resp = await fetch(`/api/logs/content?filename=${encodeURIComponent(currentLogFile)}&lines=${logLinesPerLoad}&offset=${logOffset}`);
+                const data = await resp.json();
+
+                if (data.success) {
+                    if (data.content.length > 0) {
+                        container.innerHTML = data.content.map(line => {
+                            // 根据日志内容添加颜色
+                            let color = '#ddd';
+                            if (line.includes('ERROR') || line.includes('error') || line.includes('失败')) color = '#e74c3c';
+                            else if (line.includes('WARNING') || line.includes('warning') || line.includes('WARN')) color = '#f39c12';
+                            else if (line.includes('INFO') || line.includes('成功') || line.includes('完成')) color = '#2ecc71';
+                            else if (line.includes('DEBUG') || line.includes('debug')) color = '#3498db';
+                            return `<div class="log-entry" style="color: ${color};">${escapeHtml(line)}</div>`;
+                        }).join('');
+                    } else {
+                        container.innerHTML = '<p style="color: #888; text-align: center;">日志文件为空</p>';
+                    }
+
+                    document.getElementById('log-info').textContent =
+                        `文件: ${currentLogFile} | 行: ${data.start + 1}-${data.end} / ${data.total_lines}`;
+                } else {
+                    container.innerHTML = `<p style="color: #ff4d4f; text-align: center;">${data.message}</p>`;
+                }
+            } catch (e) {
+                container.innerHTML = `<p style="color: #ff4d4f; text-align: center;">加载失败: ${e.message}</p>`;
+            }
+        }
+
+        async function loadMoreLogs() {
+            if (!currentLogFile) return;
+
+            logOffset += logLinesPerLoad;
+
+            try {
+                const resp = await fetch(`/api/logs/content?filename=${encodeURIComponent(currentLogFile)}&lines=${logLinesPerLoad}&offset=${logOffset}`);
+                const data = await resp.json();
+
+                if (data.success && data.content.length > 0) {
+                    const container = document.getElementById('log-content');
+                    data.content.forEach(line => {
+                        let color = '#ddd';
+                        if (line.includes('ERROR') || line.includes('error')) color = '#e74c3c';
+                        else if (line.includes('WARNING') || line.includes('warning')) color = '#f39c12';
+                        else if (line.includes('成功') || line.includes('完成')) color = '#2ecc71';
+                        container.innerHTML += `<div class="log-entry" style="color: ${color};">${escapeHtml(line)}</div>`;
+                    });
+                    document.getElementById('log-info').textContent =
+                        `文件: ${currentLogFile} | 行: 1-${data.end} / ${data.total_lines}`;
+                }
+            } catch (e) {
+                console.error('加载更多失败:', e);
+            }
+        }
+
+        async function refreshCurrentLog() {
+            if (!currentLogFile) return;
+            logOffset = 0;
+            await loadLogContent();
+        }
+
+        async function searchLogs() {
+            const keyword = document.getElementById('log-search').value.trim();
+            if (!keyword) {
+                alert('请输入搜索关键词');
+                return;
+            }
+
+            const container = document.getElementById('log-content');
+            container.innerHTML = '<p style="color: #888; text-align: center;">搜索中...</p>';
+
+            try {
+                const filename = currentLogFile || '';
+                const resp = await fetch(`/api/logs/search?keyword=${encodeURIComponent(keyword)}&filename=${encodeURIComponent(filename)}`);
+                const data = await resp.json();
+
+                if (data.success && data.results.length > 0) {
+                    container.innerHTML = data.results.map(r => {
+                        let color = '#ddd';
+                        if (r.content.includes('ERROR')) color = '#e74c3c';
+                        else if (r.content.includes('WARNING')) color = '#f39c12';
+                        else if (r.content.includes('成功')) color = '#2ecc71';
+                        return `<div class="log-entry" style="color: ${color};">
+                            <span style="color: #888;">[${r.file}:${r.line}] </span>${escapeHtml(r.content)}
+                        </div>`;
+                    }).join('');
+                    document.getElementById('log-info').textContent = `搜索 "${keyword}" 找到 ${data.results.length} 条结果`;
+                } else {
+                    container.innerHTML = `<p style="color: #888; text-align: center;">未找到匹配内容</p>`;
+                    document.getElementById('log-info').textContent = '';
+                }
+            } catch (e) {
+                container.innerHTML = `<p style="color: #ff4d4f; text-align: center;">搜索失败: ${e.message}</p>`;
+            }
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        // ==================== 必盈 API 管理 ====================
+        function openBiyingModal() {
+            document.getElementById('biying-modal').style.display = 'block';
+            loadBiyingStatus();
+        }
+
+        function closeBiyingModal() {
+            document.getElementById('biying-modal').style.display = 'none';
+        }
+
+        async function loadBiyingStatus() {
+            try {
+                const resp = await fetch('/api/biying/status');
+                const data = await resp.json();
+                const container = document.getElementById('biying-status');
+
+                if (data.success && data.licences && data.licences.length > 0) {
+                    container.innerHTML = data.licences.map((lic, i) => `
+                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: ${lic.is_current ? '#e6f7ff' : 'white'}; border-radius: 6px; margin-bottom: 4px; border: 1px solid ${lic.is_current ? '#1890ff' : '#eee'};">
+                            <div>
+                                <span style="font-family: monospace; font-size: 13px;">${lic.licence}</span>
+                                ${lic.is_current ? '<span style="background: #1890ff; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">当前使用</span>' : ''}
+                                ${!lic.is_available ? '<span style="background: #ff4d4f; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">已超限</span>' : ''}
+                            </div>
+                            <div style="font-size: 12px; color: #888;">
+                                使用: ${lic.usage_count} 次 | 错误: ${lic.error_count} 次
+                                <button class="btn" style="padding: 2px 8px; font-size: 11px; background: #ff4d4f; color: white; margin-left: 8px;" onclick="removeBiyingLicence('${lic.full_licence}')">删除</button>
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #888; text-align: center;">暂无 Licence，请添加</p>';
+                }
+            } catch (e) {
+                document.getElementById('biying-status').innerHTML = '<p style="color: #ff4d4f;">加载失败: ' + e.message + '</p>';
+            }
+        }
+
+        async function addBiyingLicence() {
+            const input = document.getElementById('biying-licence');
+            const licence = input.value.trim();
+            const resultEl = document.getElementById('biying-result');
+
+            if (!licence) {
+                resultEl.textContent = '请输入 Licence';
+                resultEl.style.color = '#ff4d4f';
+                return;
+            }
+
+            resultEl.textContent = '添加中...';
+            resultEl.style.color = '#888';
+
+            try {
+                const resp = await fetch('/api/biying/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ licence })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    resultEl.textContent = '添加成功！';
+                    resultEl.style.color = '#52c41a';
+                    input.value = '';
+                    loadBiyingStatus();
+                } else {
+                    resultEl.textContent = data.message;
+                    resultEl.style.color = '#ff4d4f';
+                }
+            } catch (e) {
+                resultEl.textContent = '添加失败: ' + e.message;
+                resultEl.style.color = '#ff4d4f';
+            }
+        }
+
+        async function removeBiyingLicence(licence) {
+            if (!confirm('确定要删除该 Licence 吗？')) return;
+
+            const resultEl = document.getElementById('biying-result');
+            try {
+                const resp = await fetch('/api/biying/' + encodeURIComponent(licence), { method: 'DELETE' });
+                const data = await resp.json();
+                if (data.success) {
+                    loadBiyingStatus();
+                } else {
+                    alert(data.message);
+                }
+            } catch (e) {
+                alert('删除失败: ' + e.message);
+            }
+        }
+
+        async function testBiyingAPI() {
+            const resultEl = document.getElementById('biying-result');
+            resultEl.textContent = '测试中...';
+            resultEl.style.color = '#888';
+
+            try {
+                const resp = await fetch('/api/biying/test');
+                const data = await resp.json();
+                if (data.success) {
+                    resultEl.textContent = '✅ ' + data.message;
+                    resultEl.style.color = '#52c41a';
+                } else {
+                    resultEl.textContent = '❌ ' + data.message;
+                    resultEl.style.color = '#ff4d4f';
+                }
+            } catch (e) {
+                resultEl.textContent = '测试失败: ' + e.message;
+                resultEl.style.color = '#ff4d4f';
+            }
+        }
+
+        async function switchBiyingLicence() {
+            const resultEl = document.getElementById('biying-result');
+            try {
+                const resp = await fetch('/api/biying/switch', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    resultEl.textContent = '✅ ' + data.message;
+                    resultEl.style.color = '#52c41a';
+                    loadBiyingStatus();
+                } else {
+                    resultEl.textContent = '❌ ' + data.message;
+                    resultEl.style.color = '#ff4d4f';
+                }
+            } catch (e) {
+                resultEl.textContent = '切换失败: ' + e.message;
+                resultEl.style.color = '#ff4d4f';
+            }
+        }
+
         // 初始化
+        loadLogs();  // 清空日志显示框
         initWebSocket();
         refreshStatus();
         checkDbStatus();
         checkMarketStatus();
+        loadDataSourceOptions();  // 加载数据源选项
+        loadCurrentDataSource();  // 加载当前数据源
 
         window.onbeforeunload = function() {
             if (autoCollectTimer) {

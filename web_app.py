@@ -20,7 +20,7 @@ from config import config
 from models import Base, StockBasic
 from utils import logger, TaskStoppedException
 from sqlalchemy import text, inspect
-from datasource_manager import datasource_manager, CustomDataSource
+from services.datasource_service import datasource_service, CustomDataSourceConfig
 
 # 全局采集器（延迟初始化）
 collector: Optional["StockDataCollector"] = None
@@ -277,14 +277,14 @@ class DataSourceUpdateRequest(DataSourceBase):
 @app.get("/api/datasource/list")
 async def list_datasources():
     """获取所有数据源列表（内置 + 自定义）"""
-    return {"sources": datasource_manager.list_all()}
+    return {"sources": datasource_service.list_all()}
 
 
 @app.post("/api/datasource/add")
-async def add_datasource(source: CustomDataSource):
+async def add_datasource(source: CustomDataSourceConfig):
     """添加自定义数据源"""
     try:
-        added = datasource_manager.add(source)
+        added = datasource_service.add(source)
         # 排除 api_key 字段（修复 BUG-056）
         return {"success": True, "message": "数据源添加成功", "source": added.model_dump(exclude={'api_key'})}
     except Exception as e:
@@ -296,7 +296,7 @@ async def update_datasource(source_id: str, updates: DataSourceUpdateRequest):
     """更新数据源配置"""
     # 使用 Pydantic model 替代 raw dict（修复 BUG-057）
     update_dict = {k: v for k, v in updates.model_dump().items() if v is not None}
-    updated = datasource_manager.update(source_id, update_dict)
+    updated = datasource_service.update(source_id, update_dict)
     if updated:
         # 排除 api_key 字段（修复 BUG-056）
         return {"success": True, "message": "数据源更新成功", "source": updated.model_dump(exclude={'api_key'})}
@@ -306,15 +306,15 @@ async def update_datasource(source_id: str, updates: DataSourceUpdateRequest):
 @app.delete("/api/datasource/{source_id}")
 async def remove_datasource(source_id: str):
     """删除自定义数据源"""
-    if datasource_manager.remove(source_id):
+    if datasource_service.remove(source_id):
         return {"success": True, "message": "数据源已删除"}
     return {"success": False, "message": "数据源不存在或无法删除"}
 
 
 @app.post("/api/datasource/test")
-async def test_datasource(source: CustomDataSource):
+async def test_datasource(source: CustomDataSourceConfig):
     """测试数据源连通性"""
-    result = datasource_manager.test_connection(source)
+    result = datasource_service.test_connection(source)
     return result
 
 

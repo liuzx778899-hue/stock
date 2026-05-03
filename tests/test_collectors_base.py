@@ -1,12 +1,13 @@
 """测试采集器基类"""
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, create_autospec
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import Session
 
 from collectors.base import BaseCollector
-from models import Base as ModelBase
+from models import Base as ModelBase, CollectLog
 
 
 class SimpleCollector(BaseCollector):
@@ -47,38 +48,64 @@ class TestBaseCollector:
         collector.create_table()
         assert True
 
-    def test_save_collect_log(self, memory_engine):
-        """测试保存采集日志（集成测试方式）"""
-        collector = SimpleCollector(engine=memory_engine)
+    @patch('collectors.base.sessionmaker')
+    def test_save_collect_log(self, mock_sessionmaker, memory_engine):
+        """测试保存采集日志"""
+        # 创建 mock session
+        mock_session = MagicMock()
+        mock_sessionmaker.return_value.return_value = mock_session
 
-        log_id = collector._save_collect_log(
-            task_name="测试任务",
-            task_type="basic",
-            start_time=datetime.now(),
-            end_time=datetime.now(),
-            success_count=10,
-            failed_count=0,
-            status="success"
-        )
-        assert log_id is not None
-        assert log_id > 0
+        # 模拟 log 对象有 id 属性
+        mock_log = MagicMock()
+        mock_log.id = 123
+        mock_session.add = MagicMock()
+        mock_session.commit = MagicMock()
+        mock_session.close = MagicMock()
 
-    def test_save_collect_log_with_error(self, memory_engine):
+        # 使用 patch 替换 CollectLog 构造函数
+        with patch('collectors.base.CollectLog', return_value=mock_log):
+            collector = SimpleCollector(engine=memory_engine)
+            log_id = collector._save_collect_log(
+                task_name="测试任务",
+                task_type="basic",
+                start_time=datetime.now(),
+                end_time=datetime.now(),
+                success_count=10,
+                failed_count=0,
+                status="success"
+            )
+            assert log_id == 123
+            mock_session.add.assert_called_once()
+            mock_session.commit.assert_called_once()
+
+    @patch('collectors.base.sessionmaker')
+    def test_save_collect_log_with_error(self, mock_sessionmaker, memory_engine):
         """测试保存带错误的日志"""
-        collector = SimpleCollector(engine=memory_engine)
+        # 创建 mock session
+        mock_session = MagicMock()
+        mock_sessionmaker.return_value.return_value = mock_session
 
-        log_id = collector._save_collect_log(
-            task_name="失败任务",
-            task_type="kline",
-            start_time=datetime.now(),
-            end_time=datetime.now(),
-            success_count=0,
-            failed_count=5,
-            status="failed",
-            error_msg="连接超时"
-        )
-        assert log_id is not None
-        assert log_id > 0
+        # 模拟 log 对象有 id 属性
+        mock_log = MagicMock()
+        mock_log.id = 456
+        mock_session.add = MagicMock()
+        mock_session.commit = MagicMock()
+        mock_session.close = MagicMock()
+
+        # 使用 patch 替换 CollectLog 构造函数
+        with patch('collectors.base.CollectLog', return_value=mock_log):
+            collector = SimpleCollector(engine=memory_engine)
+            log_id = collector._save_collect_log(
+                task_name="失败任务",
+                task_type="kline",
+                start_time=datetime.now(),
+                end_time=datetime.now(),
+                success_count=0,
+                failed_count=5,
+                status="failed",
+                error_msg="连接超时"
+            )
+            assert log_id == 456
 
     def test_create_log_entry(self, memory_engine):
         """测试创建日志条目"""
