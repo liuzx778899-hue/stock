@@ -515,8 +515,10 @@ async def trigger_quality_check():
     session = Session(bind=engine)
     try:
         service = QualityService(session)
-        results = service.check_all()
-        service.save_report(results)
+        # 在线程池执行同步阻塞操作，避免阻塞事件循环 (BUG-105)
+        loop = asyncio.get_running_loop()
+        results = await loop.run_in_executor(None, service.check_all)
+        await loop.run_in_executor(None, service.save_report, results)
 
         # 广播质量更新通知
         await manager.broadcast({
