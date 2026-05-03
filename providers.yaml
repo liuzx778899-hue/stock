@@ -68,6 +68,19 @@ providers:
       realtime_quote:
         quality_score: 0.85
 
+  mootdx:
+    class: adapters.mootdx_provider.TdxProvider
+    type: tcp
+    enabled: true
+    priority: 5
+    cost_type: free
+    description: 通达信数据源（mootdx TCP协议），绕过HTTP代理获取行业/地区
+    capabilities:
+      stock_industry:
+        quality_score: 0.8
+      stock_area:
+        quality_score: 0.7
+
 # 编排策略配置
 orchestration:
   stock_basic:

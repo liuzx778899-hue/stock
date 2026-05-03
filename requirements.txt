@@ -5,6 +5,7 @@ sqlalchemy>=2.0.0
 pymysql>=1.1.0
 python-dateutil>=2.8.0
 python-dotenv>=1.0.0
+mootdx>=0.11.0
 
 # Web界面依赖
 fastapi>=0.100.0

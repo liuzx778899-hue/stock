@@ -10,10 +10,13 @@ from typing import List, Optional
 import random
 from pathlib import Path
 
+# 项目根目录
+BASE_DIR = Path(__file__).parent.resolve()
+
 # 尝试加载 .env 文件
 try:
     from dotenv import load_dotenv
-    env_file = Path(__file__).parent / ".env"
+    env_file = BASE_DIR / ".env"
     if env_file.exists():
         load_dotenv(env_file)
 except ImportError:
