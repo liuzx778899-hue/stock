@@ -231,6 +231,31 @@
                 </div>
             </div>
 
+            <!-- Provider 能力声明 (T7-4) -->
+            <div class="card">
+                <h2>Provider 能力声明</h2>
+                <p style="color: #666; margin-bottom: 16px; font-size: 14px;">
+                    显示各数据源的能力：支持的数据类别、字段覆盖率、质量评分。
+                    <span style="background: #52c41a; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">绿色</span> 质量 &gt;0.8 |
+                    <span style="background: #faad14; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">黄色</span> 质量 &gt;0.5 |
+                    <span style="background: #f5222d; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px;">红色</span> 质量 ≤0.5
+                </p>
+                <div id="provider-capabilities">
+                    加载中...
+                </div>
+            </div>
+
+            <!-- 字段覆盖率报告 (T7-2 UI) -->
+            <div class="card">
+                <h2>字段覆盖率报告</h2>
+                <p style="color: #666; margin-bottom: 16px; font-size: 14px;">
+                    最近一次采集的字段覆盖率统计，显示各关键字段的有值比例。
+                </p>
+                <div id="field-report">
+                    <button class="btn btn-primary" onclick="loadFieldReport()">加载报告</button>
+                </div>
+            </div>
+
             <!-- 必盈 Licence 配置模态框 -->
             <div id="biying-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
                 <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; padding: 24px; min-width: 500px; max-width: 80%;">
@@ -498,7 +523,10 @@
 
             // 切换到股票列表页面时加载数据
             if (pageName === 'stocks') loadStocks();
-            if (pageName === 'datasource') loadDataSources();
+            if (pageName === 'datasource') {
+                loadDataSources();
+                loadProviderCapabilities();
+            }
             if (pageName === 'settings') loadStats();
             if (pageName === 'logs') loadLogsList();
         }
@@ -984,6 +1012,89 @@
                 }
             } catch (e) {
                 document.getElementById('datasource-list').innerHTML = '<p style="color: #ff4d4f;">加载数据源失败: ' + e.message + '</p>';
+            }
+        }
+
+        // T7-1: 加载 Provider 能力声明
+        async function loadProviderCapabilities() {
+            try {
+                const resp = await fetch('/api/datasource/providers');
+                const data = await resp.json();
+                const container = document.getElementById('provider-capabilities');
+
+                const categories = Object.keys(data);
+                if (categories.length > 0) {
+                    let html = '<table class="stocks-table"><thead><tr><th>数据类别</th><th>Provider</th><th>质量评分</th><th>字段覆盖</th><th>成本</th></tr></thead><tbody>';
+
+                    for (const category of categories) {
+                        const providers = data[category];
+                        providers.forEach((p, idx) => {
+                            const qualityColor = p.quality_score > 0.8 ? '#52c41a' : (p.quality_score > 0.5 ? '#faad14' : '#f5222d');
+                            const costBadge = p.cost_type === 'paid' ? '<span style="background: #ff4d4f; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px;">付费</span>' : '<span style="background: #52c41a; color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px;">免费</span>';
+                            const fieldsDisplay = p.fields ? p.fields.slice(0, 5).join(', ') + (p.fields.length > 5 ? '...' : '') : '-';
+
+                            html += `
+                                <tr>
+                                    <td>${idx === 0 ? '<strong>' + category + '</strong>' : ''}</td>
+                                    <td>${p.name}</td>
+                                    <td><span style="background: ${qualityColor}; color: white; padding: 2px 8px; border-radius: 4px; font-size: 11px;">${p.quality_score.toFixed(2)}</span></td>
+                                    <td style="font-size: 12px; color: #666;">${fieldsDisplay}</td>
+                                    <td>${costBadge}</td>
+                                </tr>
+                            `;
+                        });
+                    }
+
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p style="color: #888;">暂无 Provider 数据</p>';
+                }
+            } catch (e) {
+                document.getElementById('provider-capabilities').innerHTML = '<p style="color: #ff4d4f;">加载能力声明失败: ' + e.message + '</p>';
+            }
+        }
+
+        // T7-2: 加载字段覆盖率报告
+        async function loadFieldReport() {
+            try {
+                const resp = await fetch('/api/collect/field-report');
+                const data = await resp.json();
+                const container = document.getElementById('field-report');
+
+                if (data.message) {
+                    container.innerHTML = '<p style="color: #888;">' + data.message + '</p>';
+                    return;
+                }
+
+                const fields = Object.keys(data).filter(k => k !== 'message');
+                if (fields.length > 0) {
+                    let html = '<table class="stocks-table"><thead><tr><th>字段</th><th>有值数</th><th>总数</th><th>覆盖率</th><th>进度</th></tr></thead><tbody>';
+
+                    for (const field of fields) {
+                        const info = data[field];
+                        const rate = info.rate || (info.total > 0 ? info.covered / info.total : 0);
+                        const percent = (rate * 100).toFixed(1);
+                        const barColor = rate > 0.8 ? '#52c41a' : (rate > 0.5 ? '#faad14' : '#f5222d');
+
+                        html += `
+                            <tr>
+                                <td><strong>${field}</strong></td>
+                                <td>${info.covered || info.filled || 0}</td>
+                                <td>${info.total || 0}</td>
+                                <td>${percent}%</td>
+                                <td><div style="background: #e0e0e0; border-radius: 4px; height: 8px; width: 100px;"><div style="background: ${barColor}; height: 100%; width: ${percent}%; border-radius: 4px;"></div></div></td>
+                            </tr>
+                        `;
+                    }
+
+                    html += '</tbody></table>';
+                    container.innerHTML = html;
+                } else {
+                    container.innerHTML = '<p style="color: #888;">暂无字段覆盖率数据</p>';
+                }
+            } catch (e) {
+                document.getElementById('field-report').innerHTML = '<p style="color: #ff4d4f;">加载字段报告失败: ' + e.message + '</p>';
             }
         }
 

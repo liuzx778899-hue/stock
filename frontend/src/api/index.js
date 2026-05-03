@@ -47,6 +47,12 @@ export const getMarketStatus = () => api.get('/market/status')
 // 数据源列表
 export const getDatasources = () => api.get('/datasource/list')
 
+// T7-1: Provider 能力声明
+export const getProviders = () => api.get('/datasource/providers')
+
+// T7-2: 字段覆盖率报告
+export const getFieldReport = () => api.get('/collect/field-report')
+
 // 添加数据源
 export const addDatasource = (params) => api.post('/datasource/add', params)
 

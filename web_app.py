@@ -165,7 +165,7 @@ async def index():
 @app.get("/api/status")
 async def get_status():
     """获取采集任务状态"""
-    return task_status
+    return _convert_numpy_types(task_status)
 
 
 # ==================== 数据库连接 API ====================
@@ -351,12 +351,12 @@ async def get_current_datasource():
         return {
             "mode": "forced",
             "provider": current,
-            "available": registry.get_all_providers()
+            "available": [p.provider_name for p in registry.get_all_providers()]
         }
     return {
         "mode": "auto",
         "provider": None,
-        "available": registry.get_all_providers()
+        "available": [p.provider_name for p in registry.get_all_providers()]
     }
 
 
@@ -373,6 +373,25 @@ async def force_datasource(request: ForceDataSourceRequest):
     else:
         datasource_service.set_forced_source(None)
         return {"success": True, "mode": "auto", "provider": None}
+
+
+# ==================== Provider 能力声明 API (T7-1) ====================
+
+@app.get("/api/datasource/providers")
+async def get_provider_capabilities():
+    """返回所有 Provider 能力声明列表"""
+    from adapters import registry
+    return registry.get_capabilities_report()
+
+
+# ==================== 字段覆盖率报告 API (T7-2) ====================
+
+@app.get("/api/collect/field-report")
+async def get_field_coverage_report():
+    """返回最近一次采集的字段覆盖率报告"""
+    from services.data_orchestrator import orchestrator
+    report = orchestrator.get_field_report()
+    return report if report else {"message": "暂无采集数据"}
 
 
 # ==================== 必盈 API 管理 ====================
