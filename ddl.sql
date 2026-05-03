@@ -162,3 +162,31 @@ CREATE TABLE IF NOT EXISTS data_quality_report (
     PRIMARY KEY (id),
     INDEX idx_quality_category_time (data_category, check_time DESC)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据质量检查报告表';
+
+-- ============================================
+-- 8. 概念板块表
+-- ============================================
+CREATE TABLE IF NOT EXISTS concept (
+    id INT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    name VARCHAR(100) NOT NULL COMMENT '概念名称',
+    block_type INT COMMENT '通达信板块类型',
+    stock_count INT DEFAULT 0 COMMENT '所含股票数',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_concept_name (name),
+    INDEX idx_concept_stock_count (stock_count)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='概念板块表';
+
+-- ============================================
+-- 9. 股票-概念关联表（多对多）
+-- ============================================
+CREATE TABLE IF NOT EXISTS stock_concept (
+    id INT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
+    symbol VARCHAR(20) NOT NULL COMMENT '股票代码',
+    concept_id INT NOT NULL COMMENT '概念ID',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_stock_concept (symbol, concept_id),
+    INDEX idx_stock_concept_symbol (symbol),
+    INDEX idx_stock_concept_concept_id (concept_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='股票-概念关联表';
