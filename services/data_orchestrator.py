@@ -5,13 +5,16 @@
 """
 import pandas as pd
 from typing import Dict, List, Optional, Callable, Any
-from datetime import datetime
+from datetime import datetime, timedelta
+
+from sqlalchemy import create_engine, text
 
 from adapters.registry import registry
 from adapters.base import DataCategory, DataProvider
 from services.data_validator import DataValidator
 from services.field_merger import FieldMerger
 from services.datasource_service import datasource_service
+from config import config
 from utils import logger
 
 
@@ -339,6 +342,139 @@ class DataOrchestrator:
 
         logger.error("所有数据源都无法获取概念板块数据")
         return {}
+
+    def get_kline(
+        self,
+        symbol: str,
+        period: str = "day",
+        limit: int = 200,
+        end_date: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """获取K线数据（支持周/月/年聚合）
+
+        Args:
+            symbol: 股票代码（6位数字）
+            period: 周期 day|week|month|year
+            limit: 返回条数（默认200，最大800）
+            end_date: 截止日期（默认今天）
+
+        Returns:
+            {
+                "symbol": "000001",
+                "name": "平安银行",
+                "period": "day",
+                "data": [{trade_date, open, high, low, close, volume, ...}]
+            }
+        """
+        # 参数校验
+        if period not in ("day", "week", "month", "year"):
+            period = "day"
+        limit = min(max(limit, 1), 800)
+        end_date = end_date or datetime.now().strftime("%Y-%m-%d")
+
+        # 构建 ts_code（需要带后缀）
+        ts_code = self._build_ts_code(symbol)
+
+        # 查询日线数据
+        try:
+            engine = create_engine(config.database.connection_url)
+            query = text("""
+                SELECT trade_date, `open`, high, low, `close`, pre_close,
+                       volume, amount, pct_chg, turnover_rate
+                FROM stock_daily_kline
+                WHERE ts_code = :ts_code AND trade_date <= :end_date
+                ORDER BY trade_date DESC
+                LIMIT :limit
+            """)
+            df = pd.read_sql(query, engine, params={
+                "ts_code": ts_code,
+                "end_date": end_date,
+                "limit": limit * 4 if period != "day" else limit
+            })
+            engine.dispose()
+        except Exception as e:
+            logger.error(f"查询K线数据失败: {e}")
+            return {"symbol": symbol, "name": "", "period": period, "data": []}
+
+        if df.empty:
+            return {"symbol": symbol, "name": "", "period": period, "data": []}
+
+        # 按日期升序排列
+        df = df.sort_values("trade_date").reset_index(drop=True)
+
+        # 周期聚合
+        if period != "day":
+            df = self._aggregate_kline(df, period)
+
+        # 计算均线
+        df = self._calculate_ma(df)
+
+        # 转换为列表（倒序，最新在前）
+        data = df.tail(limit).to_dict("records")
+
+        # 获取股票名称
+        name = self._get_stock_name(symbol)
+
+        return {
+            "symbol": symbol,
+            "name": name,
+            "period": period,
+            "data": data
+        }
+
+    def _build_ts_code(self, symbol: str) -> str:
+        """构建 ts_code（带市场后缀）"""
+        symbol = symbol.strip()
+        if "." in symbol:
+            return symbol
+        if symbol.startswith("6"):
+            return f"{symbol}.SH"
+        return f"{symbol}.SZ"
+
+    def _aggregate_kline(self, df: pd.DataFrame, period: str) -> pd.DataFrame:
+        """聚合K线数据为周/月/年线"""
+        df = df.copy()
+        df["trade_date"] = pd.to_datetime(df["trade_date"])
+        df = df.set_index("trade_date").sort_index()
+
+        freq_map = {"week": "W", "month": "M", "year": "Y"}
+        freq = freq_map.get(period, "W")
+
+        agg_df = df.resample(freq).agg({
+            "open": "first",
+            "high": "max",
+            "low": "min",
+            "close": "last",
+            "volume": "sum",
+            "amount": "sum",
+            "pct_chg": "sum",
+        }).dropna()
+
+        return agg_df.reset_index()
+
+    def _calculate_ma(self, df: pd.DataFrame, periods: List[int] = None) -> pd.DataFrame:
+        """计算均线"""
+        if periods is None:
+            periods = [5, 10, 20, 60]
+
+        for p in periods:
+            if len(df) >= p:
+                df[f"ma{p}"] = df["close"].rolling(window=p).mean().round(2)
+            else:
+                df[f"ma{p}"] = None
+
+        return df
+
+    def _get_stock_name(self, symbol: str) -> str:
+        """获取股票名称"""
+        try:
+            engine = create_engine(config.database.connection_url)
+            query = text("SELECT name FROM stock_basic WHERE symbol = :symbol LIMIT 1")
+            result = engine.connect().execute(query, {"symbol": symbol}).fetchone()
+            engine.dispose()
+            return result[0] if result else ""
+        except Exception:
+            return ""
 
     def get_registry(self) -> 'DataSourceRegistry':
         """获取注册中心实例"""
