@@ -1251,6 +1251,10 @@
                             </div>
                             <div style="display: flex; gap: 8px; align-items: center;">
                                 ${s.builtin ? `
+                                    <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer;">
+                                        <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleDatasource('${s.id}', this.checked)" style="cursor: pointer;">
+                                        ${s.enabled ? '启用' : '禁用'}
+                                    </label>
                                     <input type="number" id="priority-${s.id}" value="${s.priority}" min="1" max="100" style="width: 60px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateBuiltinPriority('${s.id}', this.value)">
                                     ${s.priority !== s.default_priority ? `<button class="btn" style="padding: 4px 8px; font-size: 11px; background: #888; color: white;" onclick="resetBuiltinPriority('${s.id}')">重置</button>` : ''}
                                     ${s.id === 'biying' ? `<button class="btn" style="padding: 4px 12px; font-size: 12px; background: #1890ff; color: white;" onclick="openBiyingModal()">配置Licence</button>` : ''}
