@@ -304,6 +304,13 @@ async def list_datasources():
     return {"sources": datasource_service.list_all()}
 
 
+@app.get("/api/datasource/options")
+async def get_datasource_options():
+    """获取数据源下拉选项（修复 BUG-081）"""
+    sources = datasource_service.list_all()
+    return {"sources": sources}
+
+
 @app.post("/api/datasource/add")
 async def add_datasource(source: CustomDataSourceConfig):
     """添加自定义数据源"""
@@ -344,18 +351,14 @@ async def test_datasource(source: CustomDataSourceConfig):
 
 @app.get("/api/datasource/current")
 async def get_current_datasource():
-    """获取当前使用的数据源"""
+    """获取当前使用的数据源（修复 BUG-081：返回格式匹配前端期望）"""
     from adapters import registry
-    current = datasource_service.get_forced_source()
-    if current:
-        return {
-            "mode": "forced",
-            "provider": current,
-            "available": [p.provider_name for p in registry.get_all_providers()]
-        }
+    forced = datasource_service.get_forced_source()
+    # 返回前端期望的格式
     return {
-        "mode": "auto",
-        "provider": None,
+        "is_forced": forced is not None,
+        "current_source": datasource_service.get_current_source_name(),
+        "forced_source": forced,
         "available": [p.provider_name for p in registry.get_all_providers()]
     }
 
