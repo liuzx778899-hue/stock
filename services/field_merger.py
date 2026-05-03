@@ -19,16 +19,16 @@ class FieldMerger:
 
     # 标准字段名映射（不同数据源可能使用不同的列名）
     FIELD_ALIASES = {
-        "symbol": ["代码", "code", "dm", "股票代码"],
+        "symbol": ["代码", "code", "dm", "股票代码", "symbol"],
         "name": ["名称", "name", "mc", "股票名称"],
-        "price": ["现价", "price", "最新价", "close"],
+        "price": ["现价", "price", "最新价"],
         "open": ["开盘", "open", "开盘价"],
         "high": ["最高", "high", "最高价"],
         "low": ["最低", "low", "最低价"],
-        "close": ["收盘", "close", "收盘价", "现价"],
+        "close": ["收盘", "close", "收盘价", "最新价"],
         "volume": ["成交量", "volume", "vol", "成交股数"],
         "amount": ["成交额", "amount", "成交金额"],
-        "pct_chg": ["涨跌幅", "pct_chg", "涨跌%", "change_pct"],
+        "pct_chg": ["涨跌幅", "pct_chg", "涨跌%", "change_pct", "涨跌幅%"],
         "turnover_rate": ["换手率", "turnover_rate", "换手"],
         "industry": ["行业", "industry", "所属行业"],
         "area": ["地区", "area", "地域", "所属地区"],

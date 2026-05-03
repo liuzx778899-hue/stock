@@ -137,6 +137,9 @@ class StockBasicCollector(BaseCollector):
                     df['symbol'] = df[col]
                     break
 
+        # 清理 symbol 格式：去除 bj/sh/sz 前缀，确保是6位数字
+        df['symbol'] = df['symbol'].astype(str).str.replace(r'^(bj|sh|sz)', '', regex=True).str.zfill(6)
+
         # 构建 ts_code
         df['ts_code'] = df['symbol'].apply(self._build_ts_code)
 

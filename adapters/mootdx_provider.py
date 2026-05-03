@@ -362,8 +362,10 @@ class TdxProvider(DataProvider):
         """
         if not symbol:
             return False
-        # 去除 bj/sh/sz 等前缀
-        code = symbol.replace('bj', '').replace('sh', '').replace('sz', '').zfill(6)
+        # 去除 bj/sh/sz 等前缀（支持大小写）
+        code = symbol.lower().replace('bj', '').replace('sh', '').replace('sz', '').strip()
+        # 确保是6位数字格式
+        code = code.zfill(6)
         return code.startswith(('83', '87', '92', '93'))
 
     def _is_hs_symbol(self, symbol: str) -> bool:
@@ -374,18 +376,24 @@ class TdxProvider(DataProvider):
         """
         if not symbol:
             return False
-        # 去除 bj/sh/sz 等前缀
-        code = symbol.replace('bj', '').replace('sh', '').replace('sz', '').zfill(6)
+        # 去除 bj/sh/sz 等前缀（支持大小写）
+        code = symbol.lower().replace('bj', '').replace('sh', '').replace('sz', '').strip()
+        # 确保是6位数字格式
+        code = code.zfill(6)
         return code.startswith(('60', '00', '30', '68'))
 
     # ---- DataProvider 接口实现 ----
 
-    def fetch_industry_mapping(self) -> Dict[str, str]:
+    def fetch_industry_mapping(self, symbols: Optional[List[str]] = None) -> Dict[str, str]:
         """返回 {symbol: industry_name} 映射
 
         内部自动分流：
         - 沪深代码 → mootdx F10 (TCP)
         - 北交所代码 → AkShare BSE API (HTTP)
+
+        Args:
+            symbols: 可选的股票代码列表。传入时直接从该列表获取股票，
+                     不查数据库（用于首次采集时 DB 为空的情况）。
         """
         cache = self._load_cache()
         cached_industry = cache.get("industry", {})
@@ -394,20 +402,22 @@ class TdxProvider(DataProvider):
         if cached_industry and cache.get("updated_at"):
             return cached_industry
 
-        # 获取股票列表（从 stock_basic 表）
-        from sqlalchemy.orm import Session as ORMSession
-        from config import config
-        from sqlalchemy import create_engine
-        from models import StockBasic
-
-        try:
-            engine = create_engine(config.database.connection_url)
-            with ORMSession(bind=engine) as session:
-                stocks = session.query(StockBasic.symbol).all()
-                all_symbols = [s.symbol for s in stocks]
-        except Exception as e:
-            logger.error(f"[mootdx] 获取股票列表失败: {e}")
-            return cached_industry
+        # 获取股票列表：优先使用传入的 symbols，否则从数据库查询
+        if symbols is not None:
+            all_symbols = symbols
+        else:
+            from sqlalchemy.orm import Session as ORMSession
+            from config import config
+            from sqlalchemy import create_engine
+            from models import StockBasic
+            try:
+                engine = create_engine(config.database.connection_url)
+                with ORMSession(bind=engine) as session:
+                    stocks = session.query(StockBasic.symbol).all()
+                    all_symbols = [s.symbol for s in stocks]
+            except Exception as e:
+                logger.error(f"[mootdx] 获取股票列表失败: {e}")
+                return cached_industry
 
         # 找出需要查询的股票（缓存缺失）
         need_fetch = [s for s in all_symbols if s not in cached_industry]
@@ -449,12 +459,16 @@ class TdxProvider(DataProvider):
 
         return self._cache_data["industry"]
 
-    def fetch_area_mapping(self) -> Dict[str, str]:
+    def fetch_area_mapping(self, symbols: Optional[List[str]] = None) -> Dict[str, str]:
         """返回 {symbol: area_name} 映射
 
         内部自动分流：
         - 沪深代码 → mootdx F10 (TCP)
         - 北交所代码 → AkShare BSE API (HTTP)
+
+        Args:
+            symbols: 可选的股票代码列表。传入时直接从该列表获取股票，
+                     不查数据库（用于首次采集时 DB 为空的情况）。
         """
         cache = self._load_cache()
         cached_area = cache.get("area", {})
@@ -463,20 +477,22 @@ class TdxProvider(DataProvider):
         if cached_area and cache.get("updated_at"):
             return cached_area
 
-        # 获取股票列表
-        from sqlalchemy.orm import Session as ORMSession
-        from config import config
-        from sqlalchemy import create_engine
-        from models import StockBasic
-
-        try:
-            engine = create_engine(config.database.connection_url)
-            with ORMSession(bind=engine) as session:
-                stocks = session.query(StockBasic.symbol).all()
-                all_symbols = [s.symbol for s in stocks]
-        except Exception as e:
-            logger.error(f"[mootdx] 获取股票列表失败: {e}")
-            return cached_area
+        # 获取股票列表：优先使用传入的 symbols，否则从数据库查询
+        if symbols is not None:
+            all_symbols = symbols
+        else:
+            from sqlalchemy.orm import Session as ORMSession
+            from config import config
+            from sqlalchemy import create_engine
+            from models import StockBasic
+            try:
+                engine = create_engine(config.database.connection_url)
+                with ORMSession(bind=engine) as session:
+                    stocks = session.query(StockBasic.symbol).all()
+                    all_symbols = [s.symbol for s in stocks]
+            except Exception as e:
+                logger.error(f"[mootdx] 获取股票列表失败: {e}")
+                return cached_area
 
         # 找出需要查询的股票（缓存缺失）
         need_fetch = [s for s in all_symbols if s not in cached_area]

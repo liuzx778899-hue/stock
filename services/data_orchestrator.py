@@ -265,15 +265,25 @@ class DataOrchestrator:
                 logger.info(f"{field_name} 字段覆盖率 {coverage:.2%}，无需补充")
                 return df
 
+        # 提取股票列表（用于传入 Provider，首次采集时 DB 为空）
+        symbols = df['symbol'].tolist() if 'symbol' in df.columns else None
+
         # 寻找能提供此字段的数据源
         providers = self.get_providers(category)
 
         for provider in providers:
             try:
                 if category == DataCategory.STOCK_INDUSTRY:
-                    mapping = provider.fetch_industry_mapping()
+                    # 传入 symbols 参数，支持在首次采集（DB 为空）时直接使用数据框的股票列表
+                    try:
+                        mapping = provider.fetch_industry_mapping(symbols=symbols)
+                    except TypeError:
+                        mapping = provider.fetch_industry_mapping()
                 elif category == DataCategory.STOCK_AREA:
-                    mapping = provider.fetch_area_mapping()
+                    try:
+                        mapping = provider.fetch_area_mapping(symbols=symbols)
+                    except TypeError:
+                        mapping = provider.fetch_area_mapping()
                 else:
                     continue
 

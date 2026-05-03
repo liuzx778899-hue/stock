@@ -165,10 +165,10 @@ class DataProvider(ABC):
     def fetch_stock_basic(self) -> pd.DataFrame:
         raise NotImplementedError(f"{self.provider_name} 不支持 stock_basic")
 
-    def fetch_industry_mapping(self) -> Dict[str, str]:
+    def fetch_industry_mapping(self, symbols: Optional[List[str]] = None) -> Dict[str, str]:
         raise NotImplementedError(f"{self.provider_name} 不支持 stock_industry")
 
-    def fetch_area_mapping(self) -> Dict[str, str]:
+    def fetch_area_mapping(self, symbols: Optional[List[str]] = None) -> Dict[str, str]:
         raise NotImplementedError(f"{self.provider_name} 不支持 stock_area")
 
     def fetch_kline(self, symbol: str, start_date: str, end_date: str,
