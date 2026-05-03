@@ -56,25 +56,10 @@ class TencentProvider(DataProvider):
                     adjust: str = "qfq") -> pd.DataFrame:
         """获取日K线数据
 
-        优先使用 stock_zh_a_hist（全量数据），stock_zh_a_hist_tx 有记录数限制
+        优先使用 stock_zh_a_hist_tx，不存在则降级到通用接口
         """
         from services.field_merger import FieldMerger
 
-        # 先尝试通用接口（全量数据）
-        try:
-            df = ak.stock_zh_a_hist(
-                symbol=symbol,
-                period="daily",
-                start_date=start_date,
-                end_date=end_date,
-                adjust=adjust
-            )
-            if df is not None and not df.empty:
-                return FieldMerger.normalize_columns(df)
-        except Exception:
-            pass
-
-        # 降级到腾讯专用接口
         try:
             if hasattr(ak, 'stock_zh_a_hist_tx'):
                 df = ak.stock_zh_a_hist_tx(
@@ -87,7 +72,15 @@ class TencentProvider(DataProvider):
         except Exception:
             pass
 
-        return pd.DataFrame()
+        # 降级到通用接口
+        df = ak.stock_zh_a_hist(
+            symbol=symbol,
+            period="daily",
+            start_date=start_date,
+            end_date=end_date,
+            adjust=adjust
+        )
+        return FieldMerger.normalize_columns(df)
 
     def fetch_realtime(self, symbol: Optional[str] = None) -> pd.DataFrame:
         """腾讯不提供实时行情接口"""
