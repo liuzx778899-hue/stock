@@ -1049,7 +1049,7 @@ async def run_collect_basic():
         # 创建进度回调（修复 BUG-082）
         progress_cb = _make_basic_progress_callback(loop)
         # 传递进度回调和停止检查回调
-        count = await loop.run_in_executor(
+        result = await loop.run_in_executor(
             None,
             lambda: collector.collect_stock_basic(
                 progress_callback=progress_cb,
@@ -1061,10 +1061,13 @@ async def run_collect_basic():
             await broadcast_status("stopped", "任务已停止")
             return
 
-        task_status["stats"] = _convert_numpy_types({"count": count})
-        task_status["progress"] = count
-        task_status["total"] = count
-        await broadcast_status("completed", f"采集完成，共 {count} 条记录")
+        # 正确处理返回结果（修复 REG-003）
+        # collect_stock_basic 返回字典 {"success": True, "total": N, "saved": N}
+        saved_count = result.get("saved", 0) if isinstance(result, dict) else result
+        task_status["stats"] = _convert_numpy_types(result if isinstance(result, dict) else {"count": saved_count})
+        task_status["progress"] = saved_count
+        task_status["total"] = saved_count
+        await broadcast_status("completed", f"采集完成，共 {saved_count} 条记录")
 
     except TaskStoppedException:
         await broadcast_status("stopped", "任务已停止")
@@ -1075,8 +1078,6 @@ async def run_collect_basic():
         async with task_lock:
             task_status["running"] = False
             stop_requested.clear()
-        # 采集完成后自动触发质量检查 (Q-6)
-        await trigger_quality_check_after_collect()
         # 采集完成后自动触发质量检查 (Q-6)
         await trigger_quality_check_after_collect()
 
