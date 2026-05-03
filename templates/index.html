@@ -653,6 +653,34 @@
                     document.getElementById('quality-check-time').textContent = '检查时间: ' + data.check_time;
                 }
 
+                // 处理无报告情况 (BUG-093)
+                if (!data.reports || data.reports.length === 0) {
+                    document.getElementById('quality-check-time').textContent = '该日期暂无质量报告';
+                    // 清空所有评分卡片
+                    ['stock_basic', 'kline_daily', 'realtime_quote'].forEach(cat => {
+                        const scoreEl = document.getElementById('score-' + cat);
+                        if (scoreEl) scoreEl.textContent = '-';
+                        const statusEl = document.getElementById('status-' + cat);
+                        if (statusEl) {
+                            statusEl.textContent = '-';
+                            statusEl.style.background = '#ddd';
+                        }
+                        const cardEl = document.getElementById('quality-' + cat);
+                        if (cardEl) cardEl.style.borderLeft = '4px solid #ddd';
+                        ['completeness', 'freshness', 'anomaly'].forEach(dim => {
+                            const el = document.getElementById(dim + '-' + cat);
+                            if (el) {
+                                el.textContent = '-';
+                                el.style.color = '#888';
+                            }
+                        });
+                    });
+                    // 清空异常详情
+                    const container = document.getElementById('anomaly-details');
+                    if (container) container.innerHTML = '<p style="color:#888;text-align:center;">暂无数据</p>';
+                    return;
+                }
+
                 data.reports.forEach(report => {
                     const category = report.data_category;
 
