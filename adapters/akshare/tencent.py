@@ -5,6 +5,7 @@
 """
 import akshare as ak
 import pandas as pd
+import os
 from typing import Dict, Optional, List
 
 from adapters.base import DataProvider, DataCategory, ProviderCapability
@@ -58,8 +59,13 @@ class TencentProvider(DataProvider):
         """获取日K线数据
 
         BUG-103: stock_zh_a_hist_tx 每次只返回 4 条记录，优先使用 stock_zh_a_hist（全量数据）
+        注意: 调用前清除代理环境变量，防止企业网络/系统代理拦截请求
         """
         from services.field_merger import FieldMerger
+
+        # 清除代理环境变量（防止系统代理阻塞 K 线 HTTP 请求）
+        for var in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']:
+            os.environ.pop(var, None)
 
         # 优先使用通用接口（全量数据，无条数限制）
         try:
