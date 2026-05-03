@@ -8,6 +8,7 @@ import pandas as pd
 from typing import Dict, Optional, List
 
 from adapters.base import DataProvider, DataCategory, ProviderCapability
+from utils import logger
 
 
 class TencentProvider(DataProvider):
@@ -71,8 +72,8 @@ class TencentProvider(DataProvider):
             )
             if df is not None and not df.empty:
                 return FieldMerger.normalize_columns(df)
-        except Exception:
-            pass
+        except Exception as e:
+            logger.warning(f"{symbol} stock_zh_a_hist 失败: {e}")
 
         # 降级到腾讯专用接口（有记录数限制）
         try:
