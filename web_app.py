@@ -57,6 +57,30 @@ class ConnectionManager:
 
 manager = ConnectionManager()
 
+
+# ==================== 类型转换工具 ====================
+
+def _convert_numpy_types(obj):
+    """转换 numpy 类型为 Python 原生类型（解决 JSON 序列化问题）"""
+    import numpy as np
+    import pandas as pd
+    if obj is None:
+        return None
+    if isinstance(obj, (np.integer, np.int64, np.int32)):
+        return int(obj)
+    if isinstance(obj, (np.floating, np.float64, np.float32)):
+        return float(obj)
+    if isinstance(obj, np.ndarray):
+        return obj.tolist()
+    if isinstance(obj, pd.Series):
+        return obj.tolist()
+    if isinstance(obj, dict):
+        return {k: _convert_numpy_types(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_convert_numpy_types(v) for v in obj]
+    return obj
+
+
 # 采集任务状态
 task_status = {
     "running": False,
@@ -322,7 +346,7 @@ async def test_datasource(source: CustomDataSourceConfig):
 async def get_current_datasource():
     """获取当前使用的数据源"""
     from adapters import registry
-    current = datasource_service.get_forced_provider()
+    current = datasource_service.get_forced_source()
     if current:
         return {
             "mode": "forced",
@@ -344,10 +368,10 @@ class ForceDataSourceRequest(BaseModel):
 async def force_datasource(request: ForceDataSourceRequest):
     """强制使用指定数据源（传空恢复自动模式）"""
     if request.provider:
-        datasource_service.set_forced_provider(request.provider)
+        datasource_service.set_forced_source(request.provider)
         return {"success": True, "mode": "forced", "provider": request.provider}
     else:
-        datasource_service.clear_forced_provider()
+        datasource_service.set_forced_source(None)
         return {"success": True, "mode": "auto", "provider": None}
 
 
@@ -801,7 +825,7 @@ async def run_collect_basic():
             await broadcast_status("stopped", "任务已停止")
             return
 
-        task_status["stats"] = {"count": count}
+        task_status["stats"] = _convert_numpy_types({"count": count})
         task_status["progress"] = count
         task_status["total"] = count
         await broadcast_status("completed", f"采集完成，共 {count} 条记录")
@@ -844,7 +868,7 @@ async def run_collect_kline(start_date: str, end_date: str, threads: int):
             await broadcast_status("error", "任务已停止")
             return
 
-        task_status["stats"] = stats
+        task_status["stats"] = _convert_numpy_types(stats)
         task_status["progress"] = stats.get("total", 0)
         task_status["total"] = stats.get("total", 0)
         await broadcast_status("completed", f"采集完成，共 {stats.get('total_records', 0)} 条记录")
@@ -880,7 +904,7 @@ async def run_collect_incremental(days: int):
             await broadcast_status("error", "任务已停止")
             return
 
-        task_status["stats"] = stats
+        task_status["stats"] = _convert_numpy_types(stats)
         task_status["progress"] = stats.get("total", 0)
         task_status["total"] = stats.get("total", 0)
         await broadcast_status("completed", f"增量采集完成，共 {stats.get('total_records', 0)} 条记录")
@@ -917,7 +941,7 @@ async def run_collect_realtime():
             await broadcast_status("stopped", "任务已停止")
             return
 
-        task_status["stats"] = stats
+        task_status["stats"] = _convert_numpy_types(stats)
         task_status["progress"] = stats.get("total", 0)
         task_status["total"] = stats.get("total", 0)
         await broadcast_status("completed", f"实时行情采集完成，共 {stats.get('total', 0)} 条记录")
