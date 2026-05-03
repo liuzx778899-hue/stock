@@ -246,11 +246,11 @@ class AnomalyDetector:
                     samples=pct_extreme[:5]
                 ))
 
-                # 检查成交量为0
+                # 检查成交量为0（添加括号修复 OR/AND 优先级问题 BUG-084）
                 sql = """
                     SELECT DISTINCT ts_code
                     FROM stock_daily_kline
-                    WHERE volume = 0 OR volume IS NULL
+                    WHERE (volume = 0 OR volume IS NULL)
                     AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
                     LIMIT 10
                 """
@@ -416,16 +416,13 @@ class QualityService:
 
     def get_latest_report(self, category: Optional[str] = None) -> List[Dict[str, Any]]:
         """获取最近一次检查报告"""
-        query = self.session.query(DataQualityReport)
-        if category:
-            query = query.filter(DataQualityReport.data_category == category)
-
-        # 获取每个类别最新的一条
         results = []
         for cat in self.CATEGORIES:
             if category and cat != category:
                 continue
-            report = query.filter(DataQualityReport.data_category == cat) \
+            # 每个类别独立创建 query，避免 filter 条件叠加 (BUG-085)
+            report = self.session.query(DataQualityReport) \
+                .filter(DataQualityReport.data_category == cat) \
                 .order_by(DataQualityReport.check_time.desc()) \
                 .first()
             if report:
