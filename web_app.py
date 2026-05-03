@@ -364,16 +364,16 @@ async def get_current_datasource():
 
 
 class ForceDataSourceRequest(BaseModel):
-    provider: Optional[str] = None
+    source_name: Optional[str] = None
 
 
 @app.post("/api/datasource/force")
 async def force_datasource(request: ForceDataSourceRequest):
     """强制使用指定数据源（传空恢复自动模式）"""
-    if request.provider:
-        datasource_service.set_forced_source(request.provider)
-        display_name = datasource_service.get_display_name(request.provider)
-        return {"success": True, "mode": "forced", "provider": request.provider,
+    if request.source_name:
+        datasource_service.set_forced_source(request.source_name)
+        display_name = datasource_service.get_display_name(request.source_name)
+        return {"success": True, "mode": "forced", "provider": request.source_name,
                 "message": f"已强制使用数据源：{display_name}"}
     else:
         datasource_service.set_forced_source(None)
