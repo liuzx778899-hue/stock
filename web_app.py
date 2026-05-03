@@ -6,7 +6,7 @@ import asyncio
 import threading
 import importlib
 from datetime import datetime, time
-from typing import List, Optional
+from typing import List, Optional, Dict
 from pathlib import Path
 from contextlib import asynccontextmanager
 
@@ -30,6 +30,37 @@ collector_lock = asyncio.Lock()
 
 # 任务锁（防止并发竞态）
 task_lock = asyncio.Lock()
+
+
+# ==================== 辅助函数 ====================
+
+def _batch_get_stock_concepts(session, symbols: List[str]) -> Dict[str, List[str]]:
+    """批量获取股票关联的概念板块名称
+
+    Args:
+        session: 数据库会话
+        symbols: 股票代码列表
+
+    Returns:
+        {symbol: [concept_name1, concept_name2, ...]}
+    """
+    if not symbols:
+        return {}
+    try:
+        from models import Concept, StockConcept
+        results = session.query(StockConcept.symbol, Concept.name).join(
+            Concept, Concept.id == StockConcept.concept_id
+        ).filter(StockConcept.symbol.in_(symbols)).all()
+
+        concept_map: Dict[str, List[str]] = {}
+        for symbol, name in results:
+            if symbol not in concept_map:
+                concept_map[symbol] = []
+            if len(concept_map[symbol]) < 10:
+                concept_map[symbol].append(name)
+        return concept_map
+    except Exception:
+        return {}
 
 # 首页 HTML 缓存
 _index_html_cache: Optional[str] = None
@@ -771,6 +802,10 @@ async def get_stocks(search: Optional[str] = None, limit: int = 100):
         total = query.count()
         stocks = query.limit(limit).all()
 
+        # 批量查询概念板块（避免 N+1）
+        symbols = [s.ts_code.split('.')[0] if s.ts_code else '' for s in stocks]
+        concept_map = _batch_get_stock_concepts(session, [s for s in symbols if s])
+
         return {
             "total": total,
             "stocks": [
@@ -779,7 +814,112 @@ async def get_stocks(search: Optional[str] = None, limit: int = 100):
                     "symbol": s.ts_code.split('.')[0] if s.ts_code else '',
                     "name": s.name,
                     "industry": s.industry,
-                    "area": s.area
+                    "area": s.area,
+                    "concepts": concept_map.get(s.ts_code.split('.')[0] if s.ts_code else '', [])
+                }
+                for s in stocks
+            ]
+        }
+    finally:
+        session.close()
+
+
+@app.get("/api/stock/{symbol}/kline")
+async def get_stock_kline(symbol: str, period: str = "day", limit: int = 200, end_date: Optional[str] = None):
+    """获取个股K线数据（支持日/周/月/年周期切换）"""
+    from services.data_orchestrator import orchestrator
+    result = orchestrator.get_kline(
+        symbol=symbol,
+        period=period,
+        limit=limit,
+        end_date=end_date
+    )
+    return result
+
+
+# ==================== 概念板块 API ====================
+
+@app.get("/api/concepts")
+async def get_concepts(search: Optional[str] = None, limit: int = 100):
+    """获取概念板块列表（支持搜索）"""
+    global collector
+    async with collector_lock:
+        if collector is None:
+            from main import StockDataCollector
+            collector = StockDataCollector()
+
+    from models import Concept
+    session = Session(bind=collector.engine)
+    try:
+        query = session.query(Concept)
+
+        # 搜索过滤
+        if search:
+            search_pattern = f"%{search}%"
+            query = query.filter(Concept.name.ilike(search_pattern))
+
+        total = query.count()
+        concepts = query.order_by(Concept.stock_count.desc()).limit(limit).all()
+
+        return {
+            "total": total,
+            "concepts": [
+                {
+                    "id": c.id,
+                    "name": c.name,
+                    "block_type": c.block_type,
+                    "stock_count": c.stock_count
+                }
+                for c in concepts
+            ]
+        }
+    finally:
+        session.close()
+
+
+@app.get("/api/concepts/{concept_id}/stocks")
+async def get_concept_stocks(concept_id: int, limit: int = 50, offset: int = 0):
+    """获取指定概念板块下的所有股票"""
+    global collector
+    async with collector_lock:
+        if collector is None:
+            from main import StockDataCollector
+            collector = StockDataCollector()
+
+    from models import Concept, StockConcept, StockBasic
+    session = Session(bind=collector.engine)
+    try:
+        concept = session.query(Concept).filter(Concept.id == concept_id).first()
+        if not concept:
+            return {"success": False, "message": "概念板块不存在"}
+
+        query = session.query(StockBasic).join(
+            StockConcept, StockBasic.symbol == StockConcept.symbol
+        ).filter(StockConcept.concept_id == concept_id)
+
+        total = query.count()
+        stocks = query.limit(limit).offset(offset).all()
+
+        # 批量查询概念板块（避免 N+1）
+        symbols = [s.symbol for s in stocks if s.symbol]
+        concept_map = _batch_get_stock_concepts(session, symbols)
+
+        return {
+            "success": True,
+            "concept": {
+                "id": concept.id,
+                "name": concept.name,
+                "stock_count": concept.stock_count
+            },
+            "total": total,
+            "stocks": [
+                {
+                    "ts_code": s.ts_code,
+                    "symbol": s.symbol,
+                    "name": s.name,
+                    "industry": s.industry,
+                    "area": s.area,
+                    "concepts": concept_map.get(s.symbol, [])
                 }
                 for s in stocks
             ]
