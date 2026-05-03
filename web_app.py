@@ -645,6 +645,7 @@ def _save_concept_mapping(session, mapping: Dict[str, List[str]]) -> Dict[str, A
             stock_count=len(symbols)
         )
         session.execute(stmt)
+    session.flush()  # 确保新插入的行对后续查询可见
 
     # 查询所有概念的 id（新插入 + 已存在）
     existing = session.query(Concept.id, Concept.name).filter(

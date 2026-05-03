@@ -236,6 +236,10 @@ class StockDailyKlineCollector(BaseCollector):
             records = df.to_dict('records')
 
             for record in records:
+                # MySQL 不支持 NaN，转为 None
+                for key, value in list(record.items()):
+                    if value is not None and isinstance(value, float) and pd.isna(value):
+                        record[key] = None
                 # 构建日期
                 trade_date = record.get('日期') or record.get('date') or record.get('trade_date')
                 if trade_date is None:

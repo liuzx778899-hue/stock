@@ -10,7 +10,8 @@ import json
 import os
 import re
 import threading
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import concurrent.futures
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
@@ -608,12 +609,35 @@ class TdxProvider(DataProvider):
         return result
 
     def fetch_concept_mapping(self) -> Dict[str, List[str]]:
-        """获取概念板块映射"""
+        """获取概念板块映射
+
+        优先使用 mootdx BlockReader 下载板块文件，失败时降级到 EastMoney API。
+        """
         self._load_cache()
         if self._cache_data.get("concept"):
             logger.info(f"[mootdx] 概念板块缓存命中: {len(self._cache_data['concept'])} 个板块")
             return self._cache_data["concept"]
 
+        # 方案一：mootdx BlockReader 下载板块文件
+        result = self._fetch_concept_from_mootdx()
+        if result:
+            self._cache_data["concept"] = result
+            self._save_cache()
+            return result
+
+        # 方案二：EastMoney API 降级
+        logger.info("[mootdx] mootdx 概念数据不可用，降级到 EastMoney API...")
+        result = self._fetch_concept_from_eastmoney()
+        if result:
+            self._cache_data["concept"] = result
+            self._save_cache()
+            return result
+
+        logger.error("[mootdx] 所有数据源都无法获取概念板块数据")
+        return {}
+
+    def _fetch_concept_from_mootdx(self) -> Dict[str, List[str]]:
+        """通过 mootdx BlockReader 获取概念板块（主方案）"""
         try:
             from mootdx.reader.block_reader import BlockReader, BlockReader_TYPE_GROUP
         except ImportError:
@@ -625,11 +649,103 @@ class TdxProvider(DataProvider):
             return {}
 
         grouped = BlockReader.get_data(file_content, BlockReader_TYPE_GROUP)
-        result = self._normalize_concept_mapping(grouped)
+        return self._normalize_concept_mapping(grouped)
 
-        self._cache_data["concept"] = result
-        self._save_cache()
-        return result
+    def _fetch_concept_from_eastmoney(self) -> Dict[str, List[str]]:
+        """通过 EastMoney API 获取概念板块（降级方案）
+
+        使用 akshare 接口：
+        1. stock_board_concept_name_em() → 获取所有概念板块名称和代码
+        2. stock_board_concept_cons_em(symbol='BKnnnn') → 获取每个板块的成分股
+        """
+        try:
+            import akshare as ak
+        except ImportError:
+            logger.error("[mootdx] akshare 导入失败，无法使用 EastMoney 降级")
+            return {}
+
+        try:
+            # Step 1: 获取所有概念板块列表
+            df_names = ak.stock_board_concept_name_em()
+            if df_names is None or df_names.empty:
+                logger.error("[mootdx] EastMoney 概念板块列表为空")
+                return {}
+
+            # 列名：板块名称, 板块代码, 股票数量, ...
+            boards = []
+            for _, row in df_names.iterrows():
+                name = str(row.get("板块名称", "")).strip()
+                code = str(row.get("板块代码", "")).strip()
+                if name and code:
+                    boards.append((name, code))
+
+            logger.info(f"[mootdx] EastMoney 获取到 {len(boards)} 个概念板块")
+
+            if not boards:
+                return {}
+
+            # Step 2: 并发获取每个板块的成分股（带整体超时）
+            result = {}
+            max_workers = 10
+            completed = 0
+            failed = 0
+            BATCH_TIMEOUT = 240  # 整体超时（秒）
+
+            def fetch_board(name: str, code: str) -> Optional[tuple]:
+                """获取单个板块的成分股"""
+                try:
+                    df_cons = ak.stock_board_concept_cons_em(symbol=code)
+                    if df_cons is not None and not df_cons.empty:
+                        symbols = []
+                        for _, r in df_cons.iterrows():
+                            s = str(r.get("代码", "")).strip().zfill(6)
+                            if s:
+                                symbols.append(s)
+                        return (name, symbols)
+                except Exception as e:
+                    logger.warning(f"[mootdx] EastMoney 获取 {name}({code}) 失败: {e}")
+                return None
+
+            executor = ThreadPoolExecutor(max_workers=max_workers)
+            try:
+                all_futures = {executor.submit(fetch_board, name, code): name
+                              for name, code in boards}
+                done, pending = concurrent.futures.wait(
+                    all_futures, timeout=BATCH_TIMEOUT)
+            finally:
+                executor.shutdown(wait=False)  # 不阻塞等待未完成的线程
+
+            # 处理完成的
+            for future in done:
+                board_name = all_futures[future]
+                try:
+                    ret = future.result()
+                    if ret:
+                        name, symbols = ret
+                        if symbols:
+                            result[name] = symbols
+                            completed += 1
+                        else:
+                            failed += 1
+                    else:
+                        failed += 1
+                except Exception as e:
+                    failed += 1
+                    logger.warning(f"[mootdx] EastMoney {board_name} 处理异常: {e}")
+            # 取消超时的
+            for future in pending:
+                board_name = all_futures[future]
+                future.cancel()
+                failed += 1
+                logger.warning(f"[mootdx] EastMoney {board_name} 超时取消")
+
+            logger.info(f"[mootdx] EastMoney 概念采集完成: {completed} 个成功, {failed} 个失败, "
+                        f"总映射 {sum(len(v) for v in result.values())} 条")
+            return result
+
+        except Exception as e:
+            logger.error(f"[mootdx] EastMoney 概念采集失败: {e}")
+            return {}
 
     def health_check(self) -> bool:
         """快速健康检查（测试 TCP 连接）"""
