@@ -318,6 +318,155 @@ async def test_datasource(source: CustomDataSourceConfig):
     return result
 
 
+@app.get("/api/datasource/current")
+async def get_current_datasource():
+    """获取当前使用的数据源"""
+    from adapters import registry
+    current = datasource_service.get_forced_provider()
+    if current:
+        return {
+            "mode": "forced",
+            "provider": current,
+            "available": registry.get_all_providers()
+        }
+    return {
+        "mode": "auto",
+        "provider": None,
+        "available": registry.get_all_providers()
+    }
+
+
+class ForceDataSourceRequest(BaseModel):
+    provider: Optional[str] = None
+
+
+@app.post("/api/datasource/force")
+async def force_datasource(request: ForceDataSourceRequest):
+    """强制使用指定数据源（传空恢复自动模式）"""
+    if request.provider:
+        datasource_service.set_forced_provider(request.provider)
+        return {"success": True, "mode": "forced", "provider": request.provider}
+    else:
+        datasource_service.clear_forced_provider()
+        return {"success": True, "mode": "auto", "provider": None}
+
+
+# ==================== 必盈 API 管理 ====================
+
+@app.get("/api/biying/status")
+async def get_biying_status():
+    """获取必盈 Licence 状态"""
+    from adapters.biying import get_biying_status
+    return {"licences": get_biying_status()}
+
+
+class BiyingAddRequest(BaseModel):
+    licence: str
+
+
+@app.post("/api/biying/add")
+async def add_biying_licence(request: BiyingAddRequest):
+    """添加必盈 Licence"""
+    from adapters.biying import add_biying_licence
+    try:
+        add_biying_licence(request.licence)
+        return {"success": True, "message": "Licence 添加成功"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+@app.delete("/api/biying/{licence}")
+async def remove_biying_licence(licence: str):
+    """删除必盈 Licence"""
+    from adapters.biying import remove_biying_licence
+    try:
+        remove_biying_licence(licence)
+        return {"success": True, "message": "Licence 已删除"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+@app.get("/api/biying/test")
+async def test_biying_api():
+    """测试必盈 API 连接"""
+    from adapters.biying import BiyingProvider
+    try:
+        provider = BiyingProvider()
+        result = provider.health_check()
+        return {"success": result, "message": "连接成功" if result else "连接失败"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
+
+
+# ==================== 日志管理 API ====================
+
+@app.get("/api/logs/list")
+async def list_logs():
+    """获取日志文件列表"""
+    log_dir = Path("logs")
+    if not log_dir.exists():
+        return {"logs": []}
+    logs = []
+    for f in sorted(log_dir.glob("*.log"), key=lambda x: x.stat().st_mtime, reverse=True):
+        logs.append({
+            "name": f.name,
+            "size": f.stat().st_size,
+            "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat()
+        })
+    return {"logs": logs}
+
+
+class LogSearchRequest(BaseModel):
+    keyword: str
+    file: Optional[str] = None
+
+
+@app.get("/api/logs/search")
+async def search_logs(keyword: str = "", file: Optional[str] = None):
+    """搜索日志内容"""
+    log_dir = Path("logs")
+    if not log_dir.exists():
+        return {"results": []}
+    results = []
+    files = [log_dir / file] if file else log_dir.glob("*.log")
+    for f in (files if isinstance(files, list) else files):
+        if not f.exists():
+            continue
+        try:
+            content = f.read_text(encoding="utf-8", errors="ignore")
+            for i, line in enumerate(content.splitlines()):
+                if keyword.lower() in line.lower():
+                    results.append({"file": f.name, "line": i + 1, "content": line[:200]})
+                    if len(results) >= 100:
+                        break
+        except Exception:
+            continue
+    return {"results": results}
+
+
+class LogCleanupRequest(BaseModel):
+    days: int = 7
+
+
+@app.post("/api/logs/cleanup")
+async def cleanup_logs(request: LogCleanupRequest):
+    """清理旧日志"""
+    log_dir = Path("logs")
+    if not log_dir.exists():
+        return {"deleted_count": 0, "deleted_files": []}
+    from datetime import timedelta
+    cutoff = datetime.now() - timedelta(days=request.days)
+    deleted = []
+    for f in log_dir.glob("*.log"):
+        if datetime.fromtimestamp(f.stat().st_mtime) < cutoff:
+            try:
+                f.unlink()
+                deleted.append(f.name)
+            except Exception:
+                pass
+    return {"deleted_count": len(deleted), "deleted_files": deleted, "cutoff_date": cutoff.isoformat()}
+
+
 @app.get("/api/stats")
 async def get_stats():
     """获取数据统计"""
@@ -628,7 +777,7 @@ async def run_collect_basic():
         # 传递停止检查回调
         count = await loop.run_in_executor(
             None,
-            lambda: collector.collect_stock_basic(True, stop_requested.is_set)
+            lambda: collector.collect_stock_basic(stop_check=stop_requested.is_set)
         )
 
         if stop_requested.is_set():
