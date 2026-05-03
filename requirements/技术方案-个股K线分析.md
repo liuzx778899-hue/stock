@@ -76,6 +76,37 @@ def aggregate_kline(df, period):
 
 ---
 
+## 2.3 完整数据链路（采集 → 聚合 → 展示）
+
+```
+POST /api/collect/kline (已有, 存量功能)
+  │ 参数: start_date, end_date
+  │
+  ├─ orchestrator.collect_kline_batch()
+  │   └─ 遍历 5000+ 股票
+  │       └─ EastmoneyProvider.fetch_kline() → MySQL stock_daily_kline
+  │
+  ▼
+stock_daily_kline 表 (已有, 存日线原始数据)
+  │ data: symbol, trade_date, open, high, low, close, volume, amount
+  │
+  ├─ 用户点击股票"查看" → 请求 /api/stock/{symbol}/kline?period=day
+  │   └─ 直接从表查询 → 返回
+  │
+  ├─ 用户点击股票"查看" → 请求 /api/stock/{symbol}/kline?period=week
+  │   └─ 查日线 → pandas resample('W') → 返回周线
+  │
+  ├─ 用户点击股票"查看" → 请求 /api/stock/{symbol}/kline?period=month
+  │   └─ 查日线 → pandas resample('M') → 返回月线
+  │
+  └─ 用户点击股票"查看" → 请求 /api/stock/{symbol}/kline?period=year
+      └─ 查日线 → pandas resample('Y') → 返回年线
+```
+
+**关键点**: 只需要采集日线数据（已有功能），周/月/年线不采集不存表，前端请求时实时聚合。
+
+---
+
 ## 3. API 设计
 
 ### 3.1 GET /api/stock/{symbol}/kline（新增）

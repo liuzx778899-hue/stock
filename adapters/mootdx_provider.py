@@ -72,6 +72,13 @@ class TdxProvider(DataProvider):
                 cost_type="free",
                 latency_ms=1000,
             ),
+            ProviderCapability(
+                category=DataCategory.CONCEPT,
+                fields=["concept_name", "symbol"],
+                quality_score=0.8,
+                cost_type="free",
+                latency_ms=5000,  # 下载 + 解析约 5-10 秒
+            ),
         ]
 
     @property
@@ -131,7 +138,7 @@ class TdxProvider(DataProvider):
             except Exception as e:
                 logger.warning(f"[mootdx] 缓存加载失败: {e}")
 
-        self._cache_data = {"industry": {}, "area": {}, "updated_at": None}
+        self._cache_data = {"industry": {}, "area": {}, "concept": {}, "updated_at": None}
         return self._cache_data
 
     def _save_cache(self):
@@ -533,6 +540,96 @@ class TdxProvider(DataProvider):
         logger.info(f"[mootdx] 地区覆盖率: {coverage:.1f}% ({len(self._cache_data['area'])}/{len(all_symbols)})")
 
         return self._cache_data["area"]
+
+    def _download_block_file(self, filename: str) -> Optional[bytes]:
+        """下载通达信板块文件"""
+        quotes = self._quotes
+        if quotes is None:
+            logger.error("[mootdx] Quotes 连接不可用")
+            return None
+
+        try:
+            client = quotes.client
+            meta = client.get_block_info_meta(filename)
+            file_size = meta.get('filesize', 0)
+            if file_size == 0:
+                logger.error(f"[mootdx] {filename} 文件大小为 0")
+                return None
+
+            logger.info(f"[mootdx] {filename} 文件大小: {file_size} bytes")
+
+            all_data = bytearray()
+            start = 0
+            chunk_size = 1000
+            while start < file_size:
+                resp = client.get_block_info_data(filename, start, chunk_size)
+                data = resp.get('data', b'')
+                if not data:
+                    break
+                all_data.extend(data)
+                start += len(data)
+
+            logger.info(f"[mootdx] {filename} 下载完成: {len(all_data)} bytes")
+            return bytes(all_data)
+        except Exception as e:
+            logger.error(f"[mootdx] 下载 {filename} 失败: {e}")
+            return None
+
+    @staticmethod
+    def _normalize_concept_symbol(code: str) -> str:
+        """标准化概念板块股票代码（添加 sh/sz 前缀）"""
+        code = code.zfill(6)
+        if code.startswith('6'):
+            return f"sh{code}"
+        elif code.startswith(('0', '3')):
+            return f"sz{code}"
+        return code
+
+    def _normalize_concept_mapping(self, grouped: List[Dict]) -> Dict[str, List[str]]:
+        """解析 BlockReader 原始分组数据为概念映射字典"""
+        result = {}
+        valid_count = 0
+        empty_count = 0
+
+        for g in grouped:
+            name = g.get('blockname', '').strip()
+            if not name or name.startswith('\x00'):
+                empty_count += 1
+                continue
+            code_str = g.get('code_list', '')
+            codes = [c.strip() for c in code_str.split(',') if c.strip()]
+            normalized = [self._normalize_concept_symbol(c) for c in codes]
+            if normalized:
+                result[name] = normalized
+                valid_count += 1
+
+        logger.info(f"[mootdx] 概念板块解析完成: 有效板块 {valid_count} 个, "
+                    f"空/占位 {empty_count} 个, 总映射 {sum(len(v) for v in result.values())} 条")
+        return result
+
+    def fetch_concept_mapping(self) -> Dict[str, List[str]]:
+        """获取概念板块映射"""
+        self._load_cache()
+        if self._cache_data.get("concept"):
+            logger.info(f"[mootdx] 概念板块缓存命中: {len(self._cache_data['concept'])} 个板块")
+            return self._cache_data["concept"]
+
+        try:
+            from mootdx.reader.block_reader import BlockReader, BlockReader_TYPE_GROUP
+        except ImportError:
+            logger.error("[mootdx] BlockReader 导入失败")
+            return {}
+
+        file_content = self._download_block_file('block_gn.dat')
+        if file_content is None:
+            return {}
+
+        grouped = BlockReader.get_data(file_content, BlockReader_TYPE_GROUP)
+        result = self._normalize_concept_mapping(grouped)
+
+        self._cache_data["concept"] = result
+        self._save_cache()
+        return result
 
     def health_check(self) -> bool:
         """快速健康检查（测试 TCP 连接）"""
