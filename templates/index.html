@@ -584,6 +584,37 @@
                         <p>点击"开始检查"查看详细异常信息</p>
                     </div>
                 </div>
+
+                <!-- 质量趋势分析 -->
+                <div class="card" style="margin-top: 20px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                        <h3 style="margin: 0;">📊 质量趋势分析</h3>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <label style="font-size: 13px;">日期区间:</label>
+                            <input type="date" id="trend-start" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="loadQualityTrend()">
+                            <span>~</span>
+                            <input type="date" id="trend-end" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="loadQualityTrend()">
+                        </div>
+                    </div>
+
+                    <!-- 股票基础信息趋势图 -->
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #333;">📈 股票基础信息 (stock_basic)</h4>
+                        <div id="trend-chart-stock_basic" style="width: 100%; height: 200px; background: #fafafa; border-radius: 8px;"></div>
+                    </div>
+
+                    <!-- K线数据趋势图 -->
+                    <div style="margin-bottom: 20px;">
+                        <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #333;">📈 K线数据 (kline_daily)</h4>
+                        <div id="trend-chart-kline_daily" style="width: 100%; height: 200px; background: #fafafa; border-radius: 8px;"></div>
+                    </div>
+
+                    <!-- 实时行情趋势图 -->
+                    <div>
+                        <h4 style="margin: 0 0 8px 0; font-size: 14px; color: #333;">📈 实时行情 (realtime_quote)</h4>
+                        <div id="trend-chart-realtime_quote" style="width: 100%; height: 200px; background: #fafafa; border-radius: 8px;"></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -697,6 +728,8 @@
                         String(today.getDate()).padStart(2, '0');
                 }
                 loadQualityReport();
+                // 加载质量趋势图（第五十一轮）
+                loadQualityTrend();
             }
         }
 
@@ -827,6 +860,148 @@
             }
 
             container.innerHTML = html;
+        }
+
+        // ==================== 质量趋势分析 ====================
+        async function loadQualityTrend() {
+            try {
+                const startInput = document.getElementById('trend-start');
+                const endInput = document.getElementById('trend-end');
+
+                let start = startInput ? startInput.value : '';
+                let end = endInput ? endInput.value : '';
+
+                // 默认最近 30 天
+                if (!end) {
+                    const today = new Date();
+                    end = today.toISOString().slice(0, 10);
+                    if (endInput) endInput.value = end;
+                }
+                if (!start) {
+                    const startDate = new Date();
+                    startDate.setDate(startDate.getDate() - 30);
+                    start = startDate.toISOString().slice(0, 10);
+                    if (startInput) startInput.value = start;
+                }
+
+                const url = `/api/quality/trend?start_date=${start}&end_date=${end}`;
+                const resp = await fetch(url);
+                const data = await resp.json();
+
+                // 渲染三个类别的趋势图
+                ['stock_basic', 'kline_daily', 'realtime_quote'].forEach(category => {
+                    const trendData = data.trend[category] || [];
+                    renderTrendChart(`trend-chart-${category}`, trendData, category);
+                });
+            } catch (e) {
+                console.error('加载质量趋势失败:', e);
+            }
+        }
+
+        function renderTrendChart(containerId, data, category) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+
+            // 检查 ECharts 是否加载
+            if (typeof echarts === 'undefined') {
+                container.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">暂无数据</p>';
+                return;
+            }
+
+            if (!data || data.length === 0) {
+                container.innerHTML = '<p style="color:#888;text-align:center;padding:20px;">暂无数据</p>';
+                return;
+            }
+
+            const chart = echarts.init(container);
+            const dates = data.map(d => d.check_time);
+            const totalScores = data.map(d => d.total_score);
+            const completenessScores = data.map(d => d.completeness);
+            const freshnessScores = data.map(d => d.freshness);
+            const anomalyScores = data.map(d => d.anomaly);
+
+            chart.setOption({
+                tooltip: {
+                    trigger: 'axis',
+                    backgroundColor: 'rgba(255,255,255,0.95)',
+                    borderColor: '#ddd',
+                    borderWidth: 1,
+                    textStyle: { color: '#333', fontSize: 12 }
+                },
+                legend: {
+                    data: ['总分', '完整度', '新鲜度', '异常检测'],
+                    top: 0,
+                    textStyle: { fontSize: 11 }
+                },
+                grid: {
+                    left: 40,
+                    right: 15,
+                    top: 35,
+                    bottom: 25
+                },
+                xAxis: {
+                    type: 'category',
+                    data: dates,
+                    axisLabel: {
+                        fontSize: 10,
+                        color: '#888',
+                        rotate: dates.length > 10 ? 45 : 0
+                    },
+                    axisLine: { lineStyle: { color: '#ddd' } }
+                },
+                yAxis: {
+                    type: 'value',
+                    min: 0,
+                    max: 100,
+                    axisLabel: { fontSize: 10, color: '#888' },
+                    splitLine: { lineStyle: { color: '#eee' } }
+                },
+                series: [
+                    {
+                        name: '总分',
+                        type: 'line',
+                        data: totalScores,
+                        lineStyle: { width: 2.5 },
+                        itemStyle: { color: '#1890ff' },
+                        smooth: true,
+                        symbol: 'circle',
+                        symbolSize: 4
+                    },
+                    {
+                        name: '完整度',
+                        type: 'line',
+                        data: completenessScores,
+                        lineStyle: { width: 1.5 },
+                        itemStyle: { color: '#52c41a' },
+                        smooth: true,
+                        symbol: 'circle',
+                        symbolSize: 3
+                    },
+                    {
+                        name: '新鲜度',
+                        type: 'line',
+                        data: freshnessScores,
+                        lineStyle: { width: 1.5 },
+                        itemStyle: { color: '#faad14' },
+                        smooth: true,
+                        symbol: 'circle',
+                        symbolSize: 3
+                    },
+                    {
+                        name: '异常检测',
+                        type: 'line',
+                        data: anomalyScores,
+                        lineStyle: { width: 1.5 },
+                        itemStyle: { color: '#ff4d4f' },
+                        smooth: true,
+                        symbol: 'circle',
+                        symbolSize: 3
+                    }
+                ]
+            });
+
+            // 响应式
+            window.addEventListener('resize', () => chart.resize());
         }
 
         async function triggerQualityCheck() {
