@@ -1160,12 +1160,24 @@ async def websocket_progress(websocket: WebSocket):
 
 def _make_kline_progress_callback(loop):
     """创建K线采集进度回调，通过 WebSocket 广播进度，支持停止检查"""
-    def callback(completed, total, stats):
+    def callback(completed, total, stats=None):
         # 检查是否请求停止
         if stop_requested.is_set():
             raise TaskStoppedException("用户请求停止任务")
 
+        # 同步更新 task_status，确保 REST API 也能获取进度
+        task_status["progress"] = completed
+        task_status["total"] = total
+
         percent = round(completed * 100 / total, 1) if total > 0 else 0
+        # stats 兼容字符串（来自 _collect_parallel）和字典两种格式
+        if isinstance(stats, dict):
+            records = stats.get('total_records', 0)
+            msg = stats.get('message', f"进度: {completed}/{total} ({percent}%), 已采集 {records} 条")
+        else:
+            records = 0
+            msg = stats or f"进度: {completed}/{total} ({percent}%)"
+
         asyncio.run_coroutine_threadsafe(
             manager.broadcast({
                 "type": "progress",
@@ -1173,7 +1185,7 @@ def _make_kline_progress_callback(loop):
                 "total": total,
                 "percent": percent,
                 "stats": stats,
-                "message": f"进度: {completed}/{total} ({percent}%), 已采集 {stats.get('total_records', 0)} 条"
+                "message": msg
             }),
             loop
         )
