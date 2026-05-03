@@ -117,10 +117,14 @@ class FreshnessChecker:
                 result = session.execute(text(sql)).fetchone()
                 last_collection = result[0] if result and result[0] else None
 
-                # 检查最新上市日期
+                # 检查最新上市日期（list_date 可能为空）
                 sql2 = "SELECT MAX(list_date) as latest FROM stock_basic WHERE list_date IS NOT NULL"
                 result2 = session.execute(text(sql2)).fetchone()
                 latest_data_date = result2[0] if result2 and result2[0] else None
+
+                # 如果 list_date 不可用，用 last_collection 代替（第三十八轮修复）
+                if latest_data_date is None and last_collection is not None:
+                    latest_data_date = last_collection
 
             elif category == 'kline_daily':
                 # 检查K线最新交易日
