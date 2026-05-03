@@ -307,6 +307,39 @@ class DataOrchestrator:
         """获取最近一次采集的字段覆盖率报告"""
         return self._last_field_report
 
+    def collect_concept(
+        self,
+        progress_callback: Callable[[int, int, str], None] = None
+    ) -> Dict[str, List[str]]:
+        """采集概念板块映射数据
+
+        Args:
+            progress_callback: 进度回调函数 (current, total, stage)
+
+        Returns:
+            {concept_name: [symbol1, symbol2, ...]} 映射字典
+        """
+        logger.info("开始采集概念板块数据...")
+
+        providers = self.get_providers(DataCategory.CONCEPT)
+
+        for provider in providers:
+            try:
+                mapping = provider.fetch_concept_mapping()
+                if mapping:
+                    total_concepts = len(mapping)
+                    total_relations = sum(len(v) for v in mapping.values())
+                    logger.info(f"从 {provider.provider_name} 获取 {total_concepts} 个概念，{total_relations} 条映射")
+                    return mapping
+            except NotImplementedError:
+                continue
+            except Exception as e:
+                logger.warning(f"{provider.provider_name} 获取概念板块失败: {e}")
+                continue
+
+        logger.error("所有数据源都无法获取概念板块数据")
+        return {}
+
     def get_registry(self) -> 'DataSourceRegistry':
         """获取注册中心实例"""
         return self.registry

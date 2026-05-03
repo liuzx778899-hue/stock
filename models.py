@@ -173,3 +173,34 @@ class DataQualityReport(Base):
     anomaly_detail = Column(JSON, comment='异常明细列表')
     status = Column(String(16), default='ok', comment='状态(ok|warning|critical)')
     created_at = Column(DateTime, default=datetime.now, comment='创建时间')
+
+
+class Concept(Base):
+    """概念板块表"""
+    __tablename__ = 'concept'
+    __table_args__ = (
+        Index('idx_concept_stock_count', 'stock_count'),
+        {'comment': '概念板块表'}
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(100), nullable=False, unique=True, comment='概念名称')
+    block_type = Column(Integer, comment='通达信板块类型')
+    stock_count = Column(Integer, default=0, comment='所含股票数')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
+
+
+class StockConcept(Base):
+    """股票-概念关联表（多对多）"""
+    __tablename__ = 'stock_concept'
+    __table_args__ = (
+        UniqueConstraint('symbol', 'concept_id', name='uk_stock_concept'),
+        Index('idx_stock_concept_symbol', 'symbol'),
+        Index('idx_stock_concept_concept_id', 'concept_id'),
+        {'comment': '股票-概念关联表'}
+    )
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    symbol = Column(String(20), nullable=False, comment='股票代码')
+    concept_id = Column(Integer, nullable=False, comment='概念ID')

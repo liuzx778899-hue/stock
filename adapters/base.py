@@ -26,6 +26,7 @@ class DataCategory(Enum):
     STOCK_AREA = "stock_area"
     KLINE_DAILY = "kline_daily"
     REALTIME_QUOTE = "realtime_quote"
+    CONCEPT = "concept"
 
 
 # 每个数据类别的标准输出字段集（唯一的字段定义来源）
@@ -50,6 +51,9 @@ CATEGORY_STANDARD_FIELDS: Dict[DataCategory, List[str]] = {
         "symbol", "name", "price", "open", "high", "low",
         "pre_close", "volume", "amount", "pct_chg", "turnover_rate",
         "bid_price", "ask_price", "bid_volume", "ask_volume"
+    ],
+    DataCategory.CONCEPT: [
+        "concept_name", "symbol"
     ],
 }
 
