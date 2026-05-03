@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>A股数据采集系统</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f7fa; min-height: 100vh; display: flex; }
+
+        /* 侧边栏 */
+        .sidebar { width: 220px; background: linear-gradient(180deg, #1a1f36 0%, #252b43 100%); color: white; min-height: 100vh; position: fixed; left: 0; top: 0; }
+        .sidebar-header { padding: 24px 20px; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar-header h1 { font-size: 18px; margin-bottom: 4px; }
+        .sidebar-header p { font-size: 12px; opacity: 0.6; }
+        .nav-menu { padding: 16px 0; }
+        .nav-item { display: block; padding: 12px 24px; color: rgba(255,255,255,0.8); text-decoration: none; cursor: pointer; transition: all 0.2s; border-left: 3px solid transparent; }
+        .nav-item:hover { background: rgba(255,255,255,0.05); color: white; }
+        .nav-item.active { background: rgba(102,126,234,0.2); color: white; border-left-color: #667eea; }
+        .nav-item-icon { margin-right: 10px; font-size: 16px; }
+
+        /* 主内容区 */
+        .main-content { margin-left: 220px; flex: 1; padding: 24px; min-height: 100vh; }
+        .page { display: none; }
+        .page.active { display: block; }
+
+        .card { background: white; border-radius: 12px; padding: 24px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); margin-bottom: 20px; }
+        .card h2 { font-size: 18px; margin-bottom: 16px; color: #333; border-bottom: 2px solid #667eea; padding-bottom: 8px; display: inline-block; }
+
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; }
+        .form-group { margin-bottom: 16px; }
+        .form-group label { display: block; margin-bottom: 6px; font-weight: 500; color: #555; }
+        .form-group input, .form-group select { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .form-group input:focus, .form-group select:focus { outline: none; border-color: #667eea; }
+
+        .btn { padding: 12px 24px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+        .btn-primary { background: #667eea; color: white; }
+        .btn-primary:hover { background: #5a6fd6; }
+        .btn-primary:disabled { background: #ccc; cursor: not-allowed; }
+        .btn-danger { background: #e74c3c; color: white; }
+        .btn-success { background: #52c41a; color: white; }
+
+        .status-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 16px; }
+        .status-item { text-align: center; padding: 16px; background: #f8f9fa; border-radius: 8px; }
+        .status-item .value { font-size: 24px; font-weight: 600; color: #667eea; }
+        .status-item .label { font-size: 12px; color: #888; margin-top: 4px; }
+
+        .progress-bar { height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); transition: width 0.3s; }
+
+        .log-container { height: 200px; overflow-y: auto; background: #1e1e1e; border-radius: 8px; padding: 12px; font-family: 'Consolas', monospace; font-size: 12px; }
+        .log-entry { color: #ddd; margin-bottom: 4px; }
+        .log-entry.error { color: #e74c3c; }
+        .log-entry.success { color: #2ecc71; }
+        .log-entry.info { color: #3498db; }
+        .log-entry.stopped { color: #f39c12; }
+
+        .stocks-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .stocks-table th, .stocks-table td { padding: 10px; text-align: left; border-bottom: 1px solid #eee; }
+        .stocks-table th { background: #f8f9fa; font-weight: 600; position: sticky; top: 0; }
+        .stocks-table tr:hover { background: #f5f7fa; }
+
+        .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500; }
+        .badge-running { background: #fff3cd; color: #856404; }
+        .badge-completed { background: #d4edda; color: #155724; }
+        .badge-error { background: #f8d7da; color: #721c24; }
+
+        .datasource-item { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: #f8f9fa; border-radius: 8px; margin-bottom: 8px; }
+        .datasource-item.builtin { background: #f0f5ff; }
+        .datasource-item.custom { background: #fff7e6; }
+    </style>
+</head>
+<body>
+    <!-- 侧边栏 -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h1>A股数据采集</h1>
+            <p>AkShare + OceanBase</p>
+        </div>
+        <nav class="nav-menu">
+            <a class="nav-item active" data-page="collector" onclick="showPage('collector')">
+                <span class="nav-item-icon">📊</span>数据采集
+            </a>
+            <a class="nav-item" data-page="stocks" onclick="showPage('stocks')">
+                <span class="nav-item-icon">📈</span>股票列表
+            </a>
+            <a class="nav-item" data-page="datasource" onclick="showPage('datasource')">
+                <span class="nav-item-icon">🔌</span>数据源管理
+            </a>
+            <a class="nav-item" data-page="settings" onclick="showPage('settings')">
+                <span class="nav-item-icon">⚙️</span>系统设置
+            </a>
+        </nav>
+    </div>
+
+    <!-- 主内容区 -->
+    <div class="main-content">
+        <!-- 数据采集页面 -->
+        <div id="page-collector" class="page active">
+            <!-- 任务状态 -->
+            <div class="card">
+                <h2>任务状态</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <div class="value" id="status-running">-</div>
+                        <div class="label">任务状态</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="value" id="status-type">-</div>
+                        <div class="label">任务类型</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="value" id="status-progress">0%</div>
+                        <div class="label">完成进度</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="value" id="status-count">0</div>
+                        <div class="label">已处理</div>
+                    </div>
+                </div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress-bar" style="width: 0%"></div>
+                </div>
+                <button class="btn btn-danger" id="btn-stop" onclick="stopTask()" style="display: none; margin-bottom: 12px;">停止任务</button>
+                <div class="log-container" id="log-container"></div>
+            </div>
+
+            <!-- 采集功能 -->
+            <div class="grid">
+                <div class="card">
+                    <h2>股票基础信息</h2>
+                    <p style="color: #666; margin-bottom: 16px; font-size: 14px;">采集A股所有股票基础信息列表</p>
+                    <button class="btn btn-primary" id="btn-basic" onclick="startCollectBasic()">开始采集</button>
+                </div>
+
+                <div class="card">
+                    <h2>历史K线数据</h2>
+                    <div class="form-group">
+                        <label>开始日期</label>
+                        <input type="date" id="kline-start" value="2024-01-01">
+                    </div>
+                    <div class="form-group">
+                        <label>结束日期</label>
+                        <input type="date" id="kline-end" value="2024-12-31">
+                    </div>
+                    <div class="form-group">
+                        <label>并发线程数</label>
+                        <input type="number" id="kline-threads" value="10" min="1" max="50">
+                    </div>
+                    <button class="btn btn-primary" id="btn-kline" onclick="startCollectKline()">开始采集</button>
+                </div>
+
+                <div class="card">
+                    <h2>增量采集</h2>
+                    <div class="form-group">
+                        <label>采集最近N天</label>
+                        <input type="number" id="incremental-days" value="30" min="1" max="365">
+                    </div>
+                    <button class="btn btn-primary" id="btn-incremental" onclick="startCollectIncremental()">开始采集</button>
+                </div>
+
+                <div class="card">
+                    <h2>实时行情</h2>
+                    <p style="color: #666; margin-bottom: 12px; font-size: 14px;">采集当前交易日实时盘口数据</p>
+                    <div id="market-status" style="margin-bottom: 12px; padding: 8px; background: #f5f5f5; border-radius: 4px; font-size: 13px;">
+                        市场状态：检查中...
+                    </div>
+                    <div class="form-group">
+                        <label>定时采集间隔（秒）</label>
+                        <input type="number" id="realtime-interval" value="5" min="1" max="60">
+                    </div>
+                    <div style="display: flex; gap: 12px;">
+                        <button class="btn btn-primary" id="btn-realtime" onclick="startCollectRealtime()">单次采集</button>
+                        <button class="btn btn-success" id="btn-realtime-auto" onclick="toggleAutoCollect()">开启定时采集</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 股票列表页面 -->
+        <div id="page-stocks" class="page">
+            <div class="card">
+                <h2>股票列表 <span id="stocks-total" style="font-size: 14px; color: #888; font-weight: normal;"></span></h2>
+                <div class="form-group" style="max-width: 300px; margin-bottom: 16px;">
+                    <input type="text" id="stock-search" placeholder="搜索股票代码或名称..." oninput="filterStocks()">
+                </div>
+                <div style="max-height: 600px; overflow-y: auto;">
+                    <table class="stocks-table">
+                        <thead>
+                            <tr><th>代码</th><th>名称</th><th>行业</th><th>地区</th></tr>
+                        </thead>
+                        <tbody id="stocks-table">
+                            <tr><td colspan="4" style="text-align: center; color: #888;">加载中...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- 数据源管理页面 -->
+        <div id="page-datasource" class="page">
+            <div class="card">
+                <h2>数据源管理</h2>
+                <p style="color: #666; margin-bottom: 16px; font-size: 14px;">查看当前数据采集接口，支持添加自定义数据源（VIP/券商私有接口）</p>
+                <div id="datasource-list">
+                    加载中...
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>添加自定义数据源</h2>
+                <div class="grid" style="gap: 16px;">
+                    <div class="form-group">
+                        <label>数据源名称</label>
+                        <input type="text" id="ds-name" placeholder="如：华泰证券私有接口">
+                    </div>
+                    <div class="form-group">
+                        <label>类型</label>
+                        <select id="ds-type">
+                            <option value="http">HTTP API</option>
+                            <option value="websocket">WebSocket</option>
+                            <option value="private">私有接口</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>API URL</label>
+                        <input type="text" id="ds-url" placeholder="https://api.example.com/stock">
+                    </div>
+                    <div class="form-group">
+                        <label>API Key / Token</label>
+                        <input type="password" id="ds-key" placeholder="可选">
+                    </div>
+                    <div class="form-group">
+                        <label>认证方式</label>
+                        <select id="ds-auth">
+                            <option value="none">无需认证</option>
+                            <option value="bearer">Bearer Token</option>
+                            <option value="api_key">API Key</option>
+                            <option value="basic">Basic Auth</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>优先级（数字越小优先级越高）</label>
+                        <input type="number" id="ds-priority" value="99" min="1" max="100">
+                    </div>
+                </div>
+                <div style="margin-top: 16px; display: flex; gap: 12px;">
+                    <button class="btn btn-primary" onclick="addCustomDataSource()">添加数据源</button>
+                    <button class="btn" style="background: #888; color: white;" onclick="testCustomDataSource()">测试连接</button>
+                </div>
+                <div id="ds-result" style="margin-top: 12px; font-size: 14px;"></div>
+            </div>
+        </div>
+
+        <!-- 系统设置页面 -->
+        <div id="page-settings" class="page">
+            <div class="card">
+                <h2>数据库连接</h2>
+                <div class="grid" style="gap: 16px;">
+                    <div class="form-group">
+                        <label>主机地址</label>
+                        <input type="text" id="db-host" value="192.168.2.32">
+                    </div>
+                    <div class="form-group">
+                        <label>端口</label>
+                        <input type="number" id="db-port" value="2881">
+                    </div>
+                    <div class="form-group">
+                        <label>用户名</label>
+                        <input type="text" id="db-user" value="root@hdw">
+                    </div>
+                    <div class="form-group">
+                        <label>密码</label>
+                        <input type="password" id="db-password" placeholder="输入数据库密码">
+                    </div>
+                    <div class="form-group">
+                        <label>数据库名</label>
+                        <input type="text" id="db-name" value="astock">
+                    </div>
+                </div>
+                <div style="margin-top: 16px; display: flex; gap: 12px; align-items: center;">
+                    <button class="btn btn-primary" onclick="testDbConnect()">测试连接</button>
+                    <button class="btn btn-success" onclick="initDbTables()">初始化表结构</button>
+                    <span id="db-status" style="color: #888; font-size: 14px;"></span>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>数据统计</h2>
+                <div class="status-grid">
+                    <div class="status-item">
+                        <div class="value" id="stats-stocks">-</div>
+                        <div class="label">股票数量</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="value" id="stats-klines">-</div>
+                        <div class="label">K线记录</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="value" id="stats-realtime">-</div>
+                        <div class="label">实时行情</div>
+                    </div>
+                    <div class="status-item">
+                        <div class="value" id="stats-logs">-</div>
+                        <div class="label">采集日志</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let ws = null;
+        let taskRunning = false;
+        let autoCollectTimer = null;
+        let autoCollectEnabled = false;
+        let allStocks = [];
+
+        // 页面切换
+        function showPage(pageName) {
+            document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+            document.getElementById('page-' + pageName).classList.add('active');
+            document.querySelector(`.nav-item[data-page="${pageName}"]`).classList.add('active');
+
+            // 切换到股票列表页面时加载数据
+            if (pageName === 'stocks') loadStocks();
+            if (pageName === 'datasource') loadDataSources();
+            if (pageName === 'settings') loadStats();
+        }
+
+        // WebSocket 初始化
+        function initWebSocket() {
+            const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
+            ws = new WebSocket(protocol + '//' + location.host + '/ws/progress');
+
+            ws.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                handleWebSocketMessage(data);
+            };
+
+            ws.onclose = function() {
+                setTimeout(initWebSocket, 3000);
+            };
+        }
+
+        function handleWebSocketMessage(data) {
+            if (data.type === 'progress') {
+                updateProgress(data);
+            } else if (data.type === 'completed') {
+                addLog('success', data.message);
+                taskRunning = false;
+                updateButtons();
+                refreshStatus();
+            } else if (data.type === 'error') {
+                addLog('error', '错误: ' + data.message);
+                taskRunning = false;
+                updateButtons();
+                refreshStatus();
+            } else if (data.type === 'stopped') {
+                addLog('stopped', data.message);
+                taskRunning = false;
+                updateButtons();
+                refreshStatus();
+            }
+        }
+
+        function updateProgress(data) {
+            let percent = data.percent;
+            if (percent === undefined && data.total > 0) {
+                percent = (data.completed * 100 / data.total).toFixed(1);
+            }
+            percent = percent || 0;
+
+            document.getElementById('progress-bar').style.width = percent + '%';
+            document.getElementById('status-progress').textContent = percent + '%';
+            document.getElementById('status-count').textContent = data.completed || 0;
+            if (data.message) {
+                addLog('info', data.message);
+            }
+        }
+
+        function addLog(type, message) {
+            const container = document.getElementById('log-container');
+            const entry = document.createElement('div');
+            entry.className = 'log-entry ' + type;
+            const time = new Date().toLocaleTimeString();
+            entry.textContent = `[${time}] ${message}`;
+            container.appendChild(entry);
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function updateButtons() {
+            const buttons = ['btn-basic', 'btn-kline', 'btn-incremental', 'btn-realtime'];
+            buttons.forEach(id => {
+                const btn = document.getElementById(id);
+                if (btn) btn.disabled = taskRunning;
+            });
+            const stopBtn = document.getElementById('btn-stop');
+            if (stopBtn) stopBtn.style.display = taskRunning ? 'inline-block' : 'none';
+        }
+
+        async function stopTask() {
+            try {
+                const resp = await fetch('/api/stop', { method: 'POST' });
+                const data = await resp.json();
+                addLog('info', data.message || data.error);
+                // 立即刷新状态，不等待 WebSocket 或定时轮询
+                if (data.success) {
+                    setTimeout(refreshStatus, 1000);
+                }
+            } catch (e) {
+                addLog('error', '停止请求失败: ' + e.message);
+            }
+        }
+
+        async function refreshStatus() {
+            try {
+                const resp = await fetch('/api/status');
+                const data = await resp.json();
+                taskRunning = data.running;
+
+                document.getElementById('status-running').textContent = data.running ? '运行中' : '空闲';
+                document.getElementById('status-running').className = data.running ? 'badge badge-running' : 'badge badge-completed';
+                document.getElementById('status-type').textContent = data.task_type || '-';
+
+                updateButtons();
+            } catch (e) {
+                console.error('获取状态失败', e);
+            }
+        }
+
+        async function loadStocks() {
+            try {
+                const resp = await fetch('/api/stocks');
+                const data = await resp.json();
+                document.getElementById('stocks-total').textContent = `(共 ${data.total} 只)`;
+                allStocks = data.stocks || [];
+                renderStocks(allStocks);
+            } catch (e) {
+                console.error('获取股票列表失败', e);
+            }
+        }
+
+        function renderStocks(stocks) {
+            const tbody = document.getElementById('stocks-table');
+            if (stocks.length > 0) {
+                tbody.innerHTML = stocks.map(s =>
+                    `<tr><td>${s.ts_code}</td><td>${s.name}</td><td>${s.industry || '-'}</td><td>${s.area || '-'}</td></tr>`
+                ).join('');
+            } else {
+                tbody.innerHTML = '<tr><td colspan="4" style="text-align: center; color: #888;">暂无数据，请先采集股票基础信息</td></tr>';
+            }
+        }
+
+        function filterStocks() {
+            const keyword = document.getElementById('stock-search').value.toLowerCase();
+            const filtered = allStocks.filter(s =>
+                s.ts_code.toLowerCase().includes(keyword) ||
+                (s.name && s.name.toLowerCase().includes(keyword))
+            );
+            renderStocks(filtered);
+        }
+
+        async function loadStats() {
+            try {
+                const resp = await fetch('/api/stats');
+                const data = await resp.json();
+                document.getElementById('stats-stocks').textContent = data.stock_count || 0;
+                document.getElementById('stats-klines').textContent = data.kline_count || 0;
+                document.getElementById('stats-realtime').textContent = data.realtime_count || 0;
+                document.getElementById('stats-logs').textContent = data.log_count || 0;
+            } catch (e) {
+                console.error('获取统计失败', e);
+            }
+        }
+
+        async function startCollectBasic() {
+            if (taskRunning) return;
+            addLog('info', '启动股票基础信息采集...');
+            try {
+                const resp = await fetch('/api/collect/basic', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    taskRunning = true;
+                    updateButtons();
+                    addLog('info', data.message);
+                } else {
+                    addLog('error', data.error);
+                }
+            } catch (e) {
+                addLog('error', '请求失败: ' + e.message);
+            }
+        }
+
+        async function startCollectKline() {
+            if (taskRunning) return;
+            const startDate = document.getElementById('kline-start').value;
+            const endDate = document.getElementById('kline-end').value;
+            const threads = document.getElementById('kline-threads').value;
+            addLog('info', `启动K线采集: ${startDate} ~ ${endDate}, ${threads} 线程`);
+
+            try {
+                const resp = await fetch('/api/collect/kline', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start_date: startDate, end_date: endDate, threads: parseInt(threads) })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    taskRunning = true;
+                    updateButtons();
+                    addLog('info', data.message);
+                } else {
+                    addLog('error', data.error);
+                }
+            } catch (e) {
+                addLog('error', '请求失败: ' + e.message);
+            }
+        }
+
+        async function startCollectIncremental() {
+            if (taskRunning) return;
+            const days = document.getElementById('incremental-days').value;
+            addLog('info', `启动增量采集: 最近 ${days} 天`);
+
+            try {
+                const resp = await fetch('/api/collect/incremental', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ days: parseInt(days) })
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    taskRunning = true;
+                    updateButtons();
+                    addLog('info', data.message);
+                } else {
+                    addLog('error', data.error);
+                }
+            } catch (e) {
+                addLog('error', '请求失败: ' + e.message);
+            }
+        }
+
+        async function startCollectRealtime() {
+            if (taskRunning) return;
+            addLog('info', '启动实时行情采集...');
+
+            try {
+                const resp = await fetch('/api/collect/realtime', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    taskRunning = true;
+                    updateButtons();
+                    addLog('info', data.message);
+                } else {
+                    addLog('error', data.error);
+                }
+            } catch (e) {
+                addLog('error', '请求失败: ' + e.message);
+            }
+        }
+
+        async function checkMarketStatus() {
+            try {
+                const resp = await fetch('/api/market/status');
+                const data = await resp.json();
+                const statusEl = document.getElementById('market-status');
+                if (data.is_trading) {
+                    statusEl.innerHTML = `<span style="color: #52c41a;">● 交易中</span> - ${data.current_time}`;
+                    statusEl.style.background = '#f6ffed';
+                } else {
+                    statusEl.innerHTML = `<span style="color: #888;">○ ${data.reason}</span> - ${data.current_time}`;
+                    statusEl.style.background = '#f5f5f5';
+                }
+                return data;
+            } catch (e) {
+                return { is_trading: false };
+            }
+        }
+
+        async function toggleAutoCollect() {
+            const btn = document.getElementById('btn-realtime-auto');
+
+            if (autoCollectEnabled) {
+                if (autoCollectTimer) {
+                    clearInterval(autoCollectTimer);
+                    autoCollectTimer = null;
+                }
+                autoCollectEnabled = false;
+                btn.textContent = '开启定时采集';
+                btn.className = 'btn btn-success';
+                addLog('info', '已关闭定时采集');
+            } else {
+                autoCollectEnabled = true;
+                btn.textContent = '关闭定时采集';
+                btn.className = 'btn btn-danger';
+
+                const interval = parseInt(document.getElementById('realtime-interval').value) || 5;
+                addLog('info', `已开启定时采集，间隔 ${interval} 秒`);
+
+                await autoCollectOnce();
+                autoCollectTimer = setInterval(autoCollectOnce, interval * 1000);
+            }
+        }
+
+        async function autoCollectOnce() {
+            if (taskRunning) return;
+
+            const marketStatus = await checkMarketStatus();
+            if (!marketStatus.is_trading) {
+                addLog('info', `跳过采集：${marketStatus.reason}`);
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/collect/realtime-auto', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    taskRunning = true;
+                    updateButtons();
+                    addLog('info', '定时采集：' + data.message);
+                } else {
+                    addLog('info', '跳过：' + data.error);
+                }
+            } catch (e) {
+                addLog('error', '定时采集失败: ' + e.message);
+            }
+        }
+
+        async function testDbConnect() {
+            const statusEl = document.getElementById('db-status');
+            statusEl.textContent = '测试中...';
+            statusEl.style.color = '#888';
+
+            const config = {
+                host: document.getElementById('db-host').value,
+                port: parseInt(document.getElementById('db-port').value),
+                username: document.getElementById('db-user').value,
+                password: document.getElementById('db-password').value,
+                database: document.getElementById('db-name').value
+            };
+
+            try {
+                const resp = await fetch('/api/db/connect', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(config)
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    statusEl.textContent = '✓ ' + data.message;
+                    statusEl.style.color = '#52c41a';
+                    checkDbStatus();
+                } else {
+                    statusEl.textContent = '✗ ' + data.message;
+                    statusEl.style.color = '#ff4d4f';
+                }
+            } catch (e) {
+                statusEl.textContent = '✗ 连接失败: ' + e.message;
+                statusEl.style.color = '#ff4d4f';
+            }
+        }
+
+        async function initDbTables() {
+            const statusEl = document.getElementById('db-status');
+            statusEl.textContent = '初始化中...';
+            statusEl.style.color = '#888';
+
+            try {
+                const resp = await fetch('/api/db/init', { method: 'POST' });
+                const data = await resp.json();
+                if (data.success) {
+                    statusEl.textContent = '✓ ' + data.message;
+                    statusEl.style.color = '#52c41a';
+                    checkDbStatus();
+                } else {
+                    statusEl.textContent = '✗ ' + data.message;
+                    statusEl.style.color = '#ff4d4f';
+                }
+            } catch (e) {
+                statusEl.textContent = '✗ 初始化失败: ' + e.message;
+                statusEl.style.color = '#ff4d4f';
+            }
+        }
+
+        async function checkDbStatus() {
+            try {
+                const resp = await fetch('/api/db/status');
+                const data = await resp.json();
+                const statusEl = document.getElementById('db-status');
+                if (data.connected) {
+                    if (data.tables_exist) {
+                        statusEl.textContent = '✓ 数据库已连接，表结构完整';
+                        statusEl.style.color = '#52c41a';
+                    } else {
+                        statusEl.textContent = '⚠ 数据库已连接，请初始化表结构';
+                        statusEl.style.color = '#faad14';
+                    }
+                } else {
+                    statusEl.textContent = '✗ ' + data.message;
+                    statusEl.style.color = '#ff4d4f';
+                }
+            } catch (e) {
+                console.error('检查数据库状态失败', e);
+            }
+        }
+
+        async function loadDataSources() {
+            try {
+                const resp = await fetch('/api/datasource/list');
+                const data = await resp.json();
+                const container = document.getElementById('datasource-list');
+
+                if (data.sources && data.sources.length > 0) {
+                    container.innerHTML = data.sources.map(s => `
+                        <div class="datasource-item ${s.builtin ? 'builtin' : 'custom'}">
+                            <div>
+                                <span style="font-weight: 500;">${s.name}</span>
+                                <span style="font-size: 12px; color: #888; margin-left: 8px;">优先级: ${s.priority}</span>
+                                ${s.builtin ? '<span style="font-size: 11px; background: #e6e6e6; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">内置</span>' : ''}
+                                ${s.enabled ? '' : '<span style="font-size: 11px; background: #ffccc7; padding: 2px 6px; border-radius: 4px; margin-left: 8px;">已禁用</span>'}
+                            </div>
+                            <div style="font-size: 12px; color: #888;">
+                                ${s.type} ${s.api_url ? '- ' + s.api_url.substring(0, 30) + '...' : ''}
+                            </div>
+                        </div>
+                    `).join('');
+                } else {
+                    container.innerHTML = '<p style="color: #888;">暂无数据源</p>';
+                }
+            } catch (e) {
+                document.getElementById('datasource-list').innerHTML = '<p style="color: #ff4d4f;">加载数据源失败: ' + e.message + '</p>';
+            }
+        }
+
+        async function addCustomDataSource() {
+            const resultEl = document.getElementById('ds-result');
+            resultEl.textContent = '添加中...';
+            resultEl.style.color = '#888';
+
+            const source = {
+                name: document.getElementById('ds-name').value,
+                type: document.getElementById('ds-type').value,
+                api_url: document.getElementById('ds-url').value,
+                api_key: document.getElementById('ds-key').value || null,
+                auth_type: document.getElementById('ds-auth').value,
+                priority: parseInt(document.getElementById('ds-priority').value) || 99,
+                enabled: true
+            };
+
+            if (!source.name || !source.api_url) {
+                resultEl.textContent = '请填写数据源名称和 API URL';
+                resultEl.style.color = '#ff4d4f';
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/datasource/add', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(source)
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    resultEl.textContent = '添加成功！';
+                    resultEl.style.color = '#52c41a';
+                    loadDataSources();
+                    document.getElementById('ds-name').value = '';
+                    document.getElementById('ds-url').value = '';
+                    document.getElementById('ds-key').value = '';
+                } else {
+                    resultEl.textContent = data.message;
+                    resultEl.style.color = '#ff4d4f';
+                }
+            } catch (e) {
+                resultEl.textContent = '添加失败: ' + e.message;
+                resultEl.style.color = '#ff4d4f';
+            }
+        }
+
+        async function testCustomDataSource() {
+            const resultEl = document.getElementById('ds-result');
+            resultEl.textContent = '测试中...';
+            resultEl.style.color = '#888';
+
+            const source = {
+                name: document.getElementById('ds-name').value || '测试数据源',
+                type: document.getElementById('ds-type').value,
+                api_url: document.getElementById('ds-url').value,
+                api_key: document.getElementById('ds-key').value || null,
+                auth_type: document.getElementById('ds-auth').value
+            };
+
+            if (!source.api_url) {
+                resultEl.textContent = '请填写 API URL';
+                resultEl.style.color = '#ff4d4f';
+                return;
+            }
+
+            try {
+                const resp = await fetch('/api/datasource/test', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(source)
+                });
+                const data = await resp.json();
+                if (data.success) {
+                    resultEl.textContent = `连接成功！延迟: ${data.latency_ms}ms`;
+                    resultEl.style.color = '#52c41a';
+                } else {
+                    resultEl.textContent = data.message;
+                    resultEl.style.color = '#ff4d4f';
+                }
+            } catch (e) {
+                resultEl.textContent = '测试失败: ' + e.message;
+                resultEl.style.color = '#ff4d4f';
+            }
+        }
+
+        // 定时刷新
+        setInterval(refreshStatus, 5000);
+        setInterval(checkMarketStatus, 10000);
+
+        // 初始化
+        initWebSocket();
+        refreshStatus();
+        checkDbStatus();
+        checkMarketStatus();
+
+        window.onbeforeunload = function() {
+            if (autoCollectTimer) {
+                clearInterval(autoCollectTimer);
+                autoCollectTimer = null;
+            }
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        };
+    </script>
+</body>
+</html>
