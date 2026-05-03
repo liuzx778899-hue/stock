@@ -411,6 +411,14 @@ class DataOrchestrator:
 
         # 转换为列表（倒序，最新在前）
         data = df.tail(limit).to_dict("records")
+        # 将日期类型转为字符串（JSON 序列化兼容）
+        for row in data:
+            if "trade_date" in row and hasattr(row["trade_date"], "strftime"):
+                row["trade_date"] = row["trade_date"].strftime("%Y-%m-%d")
+            # nan 转 None（JSON 安全）
+            for k in ("pre_close", "pct_chg", "turnover_rate"):
+                if k in row and row[k] is not None and row[k] != row[k]:
+                    row[k] = None
 
         # 获取股票名称
         name = self._get_stock_name(symbol)
