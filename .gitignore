@@ -53,3 +53,6 @@ frontend/.npm/
 
 # 数据源缓存
 mootdx_cache.json
+
+# Claude Code (junctions, local config)
+.claude/
