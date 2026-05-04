@@ -594,10 +594,6 @@
                 <div class="card" style="margin-top: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h3 style="margin: 0;">📊 质量趋势分析</h3>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <label style="font-size: 13px;">截止日期:</label>
-                            <input type="date" id="trend-end" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="loadQualityTrend()">
-                        </div>
                     </div>
 
                     <!-- 类别切换 Tab -->
@@ -923,19 +919,10 @@
 
         async function loadQualityTrend() {
             try {
-                const endInput = document.getElementById('trend-end');
-
-                let end = endInput ? endInput.value : '';
-
-                // 默认今天
-                if (!end) {
-                    const today = new Date();
-                    end = today.toISOString().slice(0, 10);
-                    if (endInput) endInput.value = end;
-                }
-                // 开始日期 = 结束日期 - 30 天
-                const endDate = new Date(end);
-                const startDate = new Date(endDate);
+                // 默认今天，再往前推 30 天
+                const today = new Date();
+                const end = today.toISOString().slice(0, 10);
+                const startDate = new Date(today);
                 startDate.setDate(startDate.getDate() - 30);
                 const start = startDate.toISOString().slice(0, 10);
 
