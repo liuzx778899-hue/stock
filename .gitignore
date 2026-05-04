@@ -58,6 +58,10 @@ mootdx_cache.json
 requirements/**/*.jpg
 requirements/**/*.png
 
+# 流程文档截图（仅本地参考）
+docs/git-workflow.html
+docs/git-workflow.png
+
 # Claude Code (junctions, local config)
 .claude/
 .mcp.json
