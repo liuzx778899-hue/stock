@@ -2476,6 +2476,23 @@
                 String(today.getDate()).padStart(2, '0');
         }
 
+        // 检查区间默认上个月1号 ~ 今天
+        const cs = document.getElementById('check-start');
+        const ce = document.getElementById('check-end');
+        if (cs && !cs.value) {
+            const d = new Date();
+            d.setDate(1);
+            d.setMonth(d.getMonth() - 1);
+            cs.value = d.getFullYear() + '-' +
+                String(d.getMonth() + 1).padStart(2, '0') + '-01';
+        }
+        if (ce && !ce.value) {
+            const today = new Date();
+            ce.value = today.getFullYear() + '-' +
+                String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                String(today.getDate()).padStart(2, '0');
+        }
+
         window.onbeforeunload = function() {
             if (autoCollectTimer) {
                 clearInterval(autoCollectTimer);
