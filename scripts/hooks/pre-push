@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""
+Git pre-push hook: 推送前运行 pytest，失败阻止推送
+使用方法：复制到 .git/hooks/pre-push（无后缀）
+"""
+
+import subprocess
+import sys
+
+def run_tests():
+    """运行 pytest"""
+    print("[hook] 运行 pytest...")
+    result = subprocess.run(
+        ['pytest', 'tests/', '-v', '--tb=short', '-q'],
+        capture_output=True, text=True
+    )
+
+    # 输出测试结果
+    if result.stdout:
+        print(result.stdout)
+    if result.stderr:
+        print(result.stderr)
+
+    return result.returncode
+
+def main():
+    exit_code = run_tests()
+    if exit_code != 0:
+        print("[hook] ❌ 测试失败，阻止推送")
+        sys.exit(1)
+    else:
+        print("[hook] ✅ 测试通过，允许推送")
+        sys.exit(0)
+
+if __name__ == '__main__':
+    main()
