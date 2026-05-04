@@ -48,7 +48,7 @@
         .status-item .label { font-size: 12px; color: #888; margin-top: 4px; }
 
         .progress-bar { height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden; margin-bottom: 12px; }
-        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); transition: width 0.3s; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, #667eea, #764ba2); transition: width 0.3s; position: relative; min-width: 0; }
 
         .log-container { height: 200px; overflow-y: auto; background: #1e1e1e; border-radius: 8px; padding: 12px; font-family: 'Consolas', monospace; font-size: 12px; }
         .log-entry { color: #ddd; margin-bottom: 4px; }
@@ -167,7 +167,7 @@
                     </div>
                 </div>
                 <div class="progress-bar">
-                    <div class="progress-fill" id="progress-bar" style="width: 0%"></div>
+                    <div class="progress-fill" id="progress-bar" style="width: 0%"><span id="progress-label" style="position: absolute; right: 8px; line-height: 8px; font-size: 11px; color: white; font-weight: bold;">0%</span></div>
                 </div>
                 <button class="btn btn-danger" id="btn-stop" onclick="stopTask()" style="display: none; margin-bottom: 12px;">停止任务</button>
                 <div class="log-container" id="log-container"></div>
@@ -1140,12 +1140,14 @@
         function updateProgress(data) {
             let percent = data.percent;
             if (percent === undefined && data.total > 0) {
-                percent = (data.completed * 100 / data.total).toFixed(1);
+                percent = Math.floor(data.completed * 100 / data.total);
             }
             percent = percent || 0;
 
             document.getElementById('progress-bar').style.width = percent + '%';
             document.getElementById('status-progress').textContent = percent + '%';
+            const label = document.getElementById('progress-label');
+            if (label) label.textContent = percent + '%';
             document.getElementById('status-count').textContent = data.completed || 0;
             if (data.message) {
                 addLog('info', data.message);
@@ -2298,10 +2300,6 @@
             document.getElementById('page-stocks').classList.add('active');
             document.querySelector('.nav-item[data-page="stocks"]')?.classList.add('active');
             loadStocks();
-        }
-
-        // KLineChart 内置周期切换，不再需要手动 switchPeriod
-            loadKlineData();
         }
 
         async function loadKlineData() {
