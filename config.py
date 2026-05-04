@@ -38,7 +38,7 @@ class DatabaseConfig:
     def __post_init__(self):
         if not self.password:
             _pw = os.getenv("DB_PASSWORD")
-            self.password = _pw or "REMOVED_PASSWORD"
+            self.password = _pw or ""  # 必须设置 DB_PASSWORD 环境变量
 
     @property
     def connection_url(self) -> str:
