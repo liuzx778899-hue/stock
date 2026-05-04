@@ -250,10 +250,10 @@
                 <div style="max-height: 600px; overflow-y: auto;">
                     <table class="stocks-table">
                         <thead>
-                            <tr><th>代码</th><th>名称</th><th>行业</th><th>地区</th><th>概念板块</th><th>操作</th></tr>
+                            <tr><th>代码</th><th>名称</th><th>行业</th><th>地区</th><th>概念板块</th></tr>
                         </thead>
                         <tbody id="stocks-table">
-                            <tr><td colspan="4" style="text-align: center; color: #888;">加载中...</td></tr>
+                            <tr><td colspan="5" style="text-align: center; color: #888;">加载中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -1311,10 +1311,10 @@
                     } else {
                         conceptTags = '<span style="color: #ccc; font-size: 11px;">-</span>';
                     }
-                    return `<tr><td>${s.symbol || s.ts_code}</td><td>${s.name}</td><td>${s.industry || '-'}</td><td>${s.area || '-'}</td><td>${conceptTags}</td><td><button onclick="showStockDetail('${s.symbol || s.ts_code.split('.')[0]}')" style="padding: 4px 12px; border: 1px solid #667eea; border-radius: 4px; background: white; color: #667eea; cursor: pointer; font-size: 12px;">查看</button></td></tr>`;
+                    return `<tr><td><span class="stock-code-link" onclick="showKlineModal('${s.symbol || s.ts_code.split('.')[0]}')">${s.symbol || s.ts_code}</span></td><td><span class="stock-name-link" onclick="showKlineModal('${s.symbol || s.ts_code.split('.')[0]}')">${s.name}</span></td><td>${s.industry || '-'}</td><td>${s.area || '-'}</td><td>${conceptTags}</td></tr>`;
                 }).join('');
             } else {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888;">暂无数据，请先采集股票基础信息</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #888;">暂无数据，请先采集股票基础信息</td></tr>';
             }
         }
 
@@ -2193,6 +2193,110 @@
             document.getElementById('page-stocks').classList.add('active');
             document.querySelector('.nav-item[data-page="stocks"]')?.classList.add('active');
             loadStocks();
+        }
+
+        // ==================== K线弹窗 ====================
+        let modalChartInstance = null;
+
+        async function showKlineModal(symbol) {
+            if (!symbol) return;
+
+            // 显示弹窗
+            document.getElementById('kline-modal').classList.add('show');
+            document.getElementById('kline-modal-title').textContent = symbol;
+            document.getElementById('kline-modal-price').textContent = '';
+            document.getElementById('kline-modal-change').textContent = '';
+
+            // 加载K线数据
+            try {
+                const resp = await fetch(`/api/stock/${symbol}/kline?period=day&limit=300`);
+                const result = await resp.json();
+                if (!result.data || result.data.length === 0) {
+                    document.getElementById('kline-modal-chart').innerHTML = '<div style="text-align:center;padding:150px 0;color:#888;">暂无K线数据</div>';
+                    return;
+                }
+
+                // 显示最新价格
+                const latest = result.data[0];
+                if (latest) {
+                    document.getElementById('kline-modal-price').textContent = latest.close;
+                    const chg = latest.pct_chg || 0;
+                    const chgColor = chg >= 0 ? '#EF5350' : '#26A69A';
+                    const chgSign = chg >= 0 ? '+' : '';
+                    document.getElementById('kline-modal-change').textContent = `${chgSign}${chg.toFixed(2)}%`;
+                    document.getElementById('kline-modal-change').style.color = chgColor;
+                }
+
+                renderModalKlineChart(result.data);
+            } catch (e) {
+                console.error('获取K线数据失败', e);
+                document.getElementById('kline-modal-chart').innerHTML = '<div style="text-align:center;padding:150px 0;color:#e74c3c;">加载失败</div>';
+            }
+        }
+
+        function closeKlineModal(event) {
+            if (event && event.target !== document.getElementById('kline-modal')) return;
+            document.getElementById('kline-modal').classList.remove('show');
+            // 销毁图表实例释放内存
+            if (modalChartInstance) {
+                modalChartInstance.dispose();
+                modalChartInstance = null;
+            }
+        }
+
+        function renderModalKlineChart(data) {
+            if (modalChartInstance) {
+                modalChartInstance.dispose();
+            }
+
+            if (typeof klinecharts === 'undefined') {
+                document.getElementById('kline-modal-chart').innerHTML = '<div style="text-align:center;padding:150px 0;color:#888;">KLineChart 库未加载</div>';
+                return;
+            }
+
+            const sortedData = [...data].reverse();
+            const klineData = sortedData.map(d => ({
+                timestamp: new Date(d.trade_date + 'T15:00:00').getTime(),
+                open: parseFloat(d.open),
+                high: parseFloat(d.high),
+                low: parseFloat(d.low),
+                close: parseFloat(d.close),
+                volume: Math.round(d.volume / 100),
+                turnover: parseFloat(d.amount || 0)
+            }));
+
+            modalChartInstance = klinecharts.init('kline-modal-chart', {
+                styles: {
+                    grid: {
+                        horizontal: { color: '#2a2e3f', style: 1 },
+                        vertical: { color: '#2a2e3f', style: 1 }
+                    },
+                    candle: {
+                        bar: {
+                            upColor: '#EF5350',
+                            downColor: '#26A69A',
+                            upBorderColor: '#EF5350',
+                            downBorderColor: '#26A69A',
+                            upWickColor: '#EF5350',
+                            downWickColor: '#26A69A',
+                            noChangeColor: '#888888'
+                        },
+                        tooltip: { showType: 'standard' }
+                    },
+                    xAxis: {
+                        axisLine: { color: '#4a4f63' },
+                        tickText: { color: '#9298b4' }
+                    },
+                    yAxis: {
+                        axisLine: { color: '#4a4f63' },
+                        tickText: { color: '#9298b4' }
+                    }
+                }
+            });
+
+            modalChartInstance.applyNewData(klineData);
+            modalChartInstance.createIndicator('MA', false, { id: 'candle_pane' });
+            modalChartInstance.createIndicator('VOL', false);
         }
 
         async function loadKlineData() {
