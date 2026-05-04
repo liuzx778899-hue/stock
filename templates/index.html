@@ -185,11 +185,11 @@
                     <h2>历史K线数据</h2>
                     <div class="form-group">
                         <label>开始日期</label>
-                        <input type="date" id="kline-start" value="2024-01-01">
+                        <input type="date" id="kline-start">
                     </div>
                     <div class="form-group">
                         <label>结束日期</label>
-                        <input type="date" id="kline-end" value="2024-12-31">
+                        <input type="date" id="kline-end">
                     </div>
                     <div class="form-group">
                         <label>并发线程数</label>
@@ -2467,6 +2467,19 @@
         checkMarketStatus();
         loadDataSourceOptions();  // 加载数据源选项
         loadCurrentDataSource();  // 加载当前数据源
+
+        // K线日期默认当前年份
+        const ks = document.getElementById('kline-start');
+        const ke = document.getElementById('kline-end');
+        if (ks && !ks.value) {
+            ks.value = new Date().getFullYear() + '-01-01';
+        }
+        if (ke && !ke.value) {
+            const today = new Date();
+            ke.value = today.getFullYear() + '-' +
+                String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                String(today.getDate()).padStart(2, '0');
+        }
 
         window.onbeforeunload = function() {
             if (autoCollectTimer) {
