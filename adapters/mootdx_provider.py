@@ -11,7 +11,7 @@ import os
 import re
 import threading
 import concurrent.futures
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional, Any
 
