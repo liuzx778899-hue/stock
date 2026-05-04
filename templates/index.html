@@ -594,6 +594,12 @@
                 <div class="card" style="margin-top: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h3 style="margin: 0;">📊 质量趋势分析</h3>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <label style="font-size: 13px;">开始:</label>
+                            <input type="date" id="trend-start" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="loadQualityTrend()">
+                            <label style="font-size: 13px;">结束:</label>
+                            <input type="date" id="trend-end" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="loadQualityTrend()">
+                        </div>
                     </div>
 
                     <!-- 类别切换 Tab -->
@@ -749,7 +755,23 @@
                         String(today.getDate()).padStart(2, '0');
                 }
                 loadQualityReport();
-                // 加载质量趋势图（第五十一轮）
+                // 初始化趋势区间（开始=今天-30天，结束=今天）
+                const ts = document.getElementById('trend-start');
+                const te = document.getElementById('trend-end');
+                const today = new Date();
+                if (te && !te.value) {
+                    te.value = today.getFullYear() + '-' +
+                        String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(today.getDate()).padStart(2, '0');
+                }
+                if (ts && !ts.value) {
+                    const past = new Date(today);
+                    past.setDate(past.getDate() - 30);
+                    ts.value = past.getFullYear() + '-' +
+                        String(past.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(past.getDate()).padStart(2, '0');
+                }
+                // 加载质量趋势图
                 loadQualityTrend();
             }
         }
@@ -919,12 +941,23 @@
 
         async function loadQualityTrend() {
             try {
-                // 默认今天，再往前推 30 天
-                const today = new Date();
-                const end = today.toISOString().slice(0, 10);
-                const startDate = new Date(today);
-                startDate.setDate(startDate.getDate() - 30);
-                const start = startDate.toISOString().slice(0, 10);
+                const startInput = document.getElementById('trend-start');
+                const endInput = document.getElementById('trend-end');
+                let start = startInput ? startInput.value : '';
+                let end = endInput ? endInput.value : '';
+                if (!start || !end) {
+                    const today = new Date();
+                    const thirtyDaysAgo = new Date(today);
+                    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+                    if (!end) {
+                        end = today.toISOString().slice(0, 10);
+                        if (endInput) endInput.value = end;
+                    }
+                    if (!start) {
+                        start = thirtyDaysAgo.toISOString().slice(0, 10);
+                        if (startInput) startInput.value = start;
+                    }
+                }
 
                 const url = `/api/quality/trend?start_date=${start}&end_date=${end}`;
                 const resp = await fetch(url);
