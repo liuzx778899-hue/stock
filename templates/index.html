@@ -2197,9 +2197,17 @@
 
         // ==================== K线弹窗 ====================
         let modalChartInstance = null;
+        let currentKlineSymbol = null;
+        let currentKlinePeriod = 'day';
 
         async function showKlineModal(symbol) {
             if (!symbol) return;
+            currentKlineSymbol = symbol;
+            currentKlinePeriod = 'day';
+
+            // 重置周期按钮状态
+            document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector('.period-tab[data-period="day"]').classList.add('active');
 
             // 显示弹窗
             document.getElementById('kline-modal').classList.add('show');
@@ -2207,9 +2215,23 @@
             document.getElementById('kline-modal-price').textContent = '';
             document.getElementById('kline-modal-change').textContent = '';
 
-            // 加载K线数据
+            await loadKlineData(symbol, currentKlinePeriod);
+        }
+
+        async function switchKlinePeriod(period) {
+            if (!currentKlineSymbol) return;
+            currentKlinePeriod = period;
+
+            // 更新按钮状态
+            document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.period-tab[data-period="${period}"]`).classList.add('active');
+
+            await loadKlineData(currentKlineSymbol, period);
+        }
+
+        async function loadKlineData(symbol, period) {
             try {
-                const resp = await fetch(`/api/stock/${symbol}/kline?period=day&limit=300`);
+                const resp = await fetch(`/api/stock/${symbol}/kline?period=${period}&limit=300`);
                 const result = await resp.json();
                 if (!result.data || result.data.length === 0) {
                     document.getElementById('kline-modal-chart').innerHTML = '<div style="text-align:center;padding:150px 0;color:#888;">暂无K线数据</div>';
@@ -2488,6 +2510,13 @@
                 <button class="kline-modal-close" onclick="closeKlineModal()">&times;</button>
             </div>
             <div class="kline-modal-body">
+                <!-- K线周期切换 -->
+                <div class="period-tabs" style="padding: 12px 20px; background: #f5f5f5; border-bottom: 1px solid #eee;">
+                    <button class="period-tab active" data-period="day" onclick="switchKlinePeriod('day')">日K</button>
+                    <button class="period-tab" data-period="week" onclick="switchKlinePeriod('week')">周K</button>
+                    <button class="period-tab" data-period="month" onclick="switchKlinePeriod('month')">月K</button>
+                    <button class="period-tab" data-period="year" onclick="switchKlinePeriod('year')">年K</button>
+                </div>
                 <div id="kline-modal-chart"></div>
             </div>
         </div>
