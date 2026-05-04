@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Git 驱动开发流程 v2</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { background: #1a1a2e; color: #e0e0e0; font-family: 'Segoe UI', sans-serif; padding: 40px 20px; }
+  h1 { text-align: center; color: #e94560; margin-bottom: 10px; }
+  .subtitle { text-align: center; color: #6e7681; margin-bottom: 30px; font-size: 13px; }
+  .pipeline { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-bottom: 40px; }
+  .step { background: #16213e; border: 1px solid #0f3460; border-radius: 10px; padding: 14px 16px; min-width: 100px; text-align: center; }
+  .step:hover { border-color: #e94560; }
+  .step .agent { font-size: 10px; color: #a0a0a0; margin-bottom: 2px; }
+  .step .action { font-weight: bold; font-size: 13px; }
+  .step .tag { font-size: 10px; color: #53d769; margin-top: 4px; font-family: monospace; }
+  .arrow { display: flex; align-items: center; color: #e94560; font-size: 20px; }
+  .section { max-width: 1000px; margin: 0 auto 35px; }
+  .section h2 { color: #e94560; border-bottom: 1px solid #0f3460; padding-bottom: 8px; margin-bottom: 14px; font-size: 20px; }
+  table { width: 100%; border-collapse: collapse; margin-bottom: 16px; }
+  th { background: #0f3460; padding: 8px 12px; text-align: left; font-size: 12px; }
+  td { padding: 8px 12px; border-bottom: 1px solid #0f3460; font-size: 12px; }
+  tr:hover td { background: #16213e; }
+  code { background: #0f3460; padding: 1px 5px; border-radius: 3px; font-size: 11px; color: #53d769; }
+  .cmd-block { background: #0d1117; border: 1px solid #0f3460; border-radius: 8px; padding: 12px 16px; margin: 8px 0; }
+  .cmd-block pre { font-family: 'Cascadia Code', monospace; font-size: 11px; line-height: 1.6; color: #c9d1d9; }
+  .comment { color: #6e7681; }
+  .rule { background: #16213e; border-left: 3px solid #e94560; padding: 10px 16px; margin: 14px 0; border-radius: 0 8px 8px 0; font-size: 13px; }
+  .phase-title { color: #e94560; font-weight: bold; margin: 12px 0 6px; font-size: 14px; }
+  .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 12px; margin-bottom: 16px; }
+  .triage-card { background: #16213e; border: 1px solid #0f3460; border-radius: 10px; padding: 16px; text-align: center; }
+  .triage-card h3 { color: #e94560; margin-bottom: 8px; font-size: 16px; }
+  .triage-card .label { font-family: monospace; font-size: 20px; padding: 4px 12px; border-radius: 6px; display: inline-block; margin: 8px 0; }
+  .label-bug { background: #b60205; color: #fff; }
+  .label-enhancement { background: #0e8a16; color: #fff; }
+  .label-question { background: #d876e3; color: #fff; }
+  @media (max-width: 768px) { .grid-2, .grid-3 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+
+<h1>Git 驱动开发流程</h1>
+<div class="subtitle">v2 — PM 统一 Issue 分诊 · 标签驱动 · 远程协作</div>
+
+<!-- Issue 分诊 -->
+<div class="section">
+  <h2>Issue 分诊（PM 统一管理）</h2>
+  <div class="rule">所有 Issue 由 <strong>PM</strong> 统一创建和打标签。其他 Agent 发现问题/想法 → 告诉 PM → PM 建 Issue。</div>
+  <div class="grid-3">
+    <div class="triage-card">
+      <h3>Bug</h3>
+      <div class="label label-bug">bug</div>
+      <p style="margin-top:8px;font-size:13px">代码缺陷<br>功能异常/崩溃</p>
+      <p style="font-size:11px;color:#6e7681;margin-top:4px">→ bugfixer 修复</p>
+    </div>
+    <div class="triage-card">
+      <h3>Enhancement</h3>
+      <div class="label label-enhancement">enhancement</div>
+      <p style="margin-top:8px;font-size:13px">新功能/改进</p>
+      <p style="font-size:11px;color:#6e7681;margin-top:4px">→ develop 开发</p>
+    </div>
+    <div class="triage-card">
+      <h3>Question</h3>
+      <div class="label label-question">question</div>
+      <p style="margin-top:8px;font-size:13px">待讨论/不确定</p>
+      <p style="font-size:11px;color:#6e7681;margin-top:4px">→ PM 讨论澄清</p>
+    </div>
+  </div>
+</div>
+
+<!-- Pipeline -->
+<h1 style="font-size:20px;margin-top:20px">流水线全景</h1>
+<div class="pipeline">
+  <div class="step"><div class="agent">PM</div><div class="action">Issue + 需求</div><div class="tag">requirement/分支</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="agent">develop</div><div class="action">开发</div><div class="tag">round-N-dev</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="agent">test1</div><div class="action">审查</div><div class="tag">round-N-review</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="agent">integration</div><div class="action">集成测试</div><div class="tag">round-N-itest</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="agent">puppeteer</div><div class="action">UI验证</div><div class="tag">round-N-ui</div></div>
+  <div class="arrow">→</div>
+  <div class="step"><div class="agent">deploy</div><div class="action">部署</div><div class="tag">deploy-N</div></div>
+  <div class="arrow">→</div>
+  <div class="step" style="border-color:#53d769"><div class="action" style="font-size:12px">merge main</div><div class="tag" style="color:#53d769">上线</div></div>
+</div>
+
+<div class="rule">只有 <strong>deploy Agent</strong> 有权 merge main。所有 Agent 通过 <code>git push origin --tags</code> 同步 tag 到 GitHub。</div>
+
+<!-- Tables -->
+<div class="grid-2">
+  <div class="section">
+    <h2>角色与入口</h2>
+    <table>
+      <tr><th>#</th><th>角色</th><th>文件</th><th>职责</th></tr>
+      <tr><td>1</td><td>PM</td><td>pm.md</td><td>需求分析、Issue 分诊</td></tr>
+      <tr><td>2</td><td>框架架构</td><td>develop1.md</td><td>抽象接口、注册中心</td></tr>
+      <tr><td>3</td><td>功能开发</td><td>develop2.md</td><td>Provider、API、前端</td></tr>
+      <tr><td>4</td><td>BUG修复</td><td>bugfixer.md</td><td>只修 label:bug</td></tr>
+      <tr><td>5</td><td>代码审查</td><td>test1.md</td><td>审查 + 单元测试</td></tr>
+      <tr><td>6</td><td>集成测试</td><td>integration.md</td><td>端到端验证</td></tr>
+      <tr><td>7</td><td>运维</td><td>deploy.md</td><td>健康检查</td></tr>
+      <tr><td>8</td><td>部署</td><td>deploy.md</td><td>部署 + merge main</td></tr>
+      <tr><td>9</td><td>UI测试</td><td>puppeteer-agent.md</td><td>浏览器拟人化测试</td></tr>
+    </table>
+  </div>
+  <div>
+    <div class="section">
+      <h2>Tag 体系</h2>
+      <table>
+        <tr><th>Tag</th><th>含义</th></tr>
+        <tr><td><code>round-N-dev</code></td><td>开发完成</td></tr>
+        <tr><td><code>round-N-review</code></td><td>审查通过</td></tr>
+        <tr><td><code>round-N-review-fail</code></td><td>审查不通过</td></tr>
+        <tr><td><code>round-N-itest</code></td><td>集成测试通过</td></tr>
+        <tr><td><code>round-N-itest-fail</code></td><td>集成测试失败</td></tr>
+        <tr><td><code>round-N-fix</code></td><td>修复完成等回测</td></tr>
+        <tr><td><code>round-N-ui</code></td><td>UI验证通过</td></tr>
+        <tr><td><code>fix-BUG-XXX</code></td><td>Bug修复完成</td></tr>
+        <tr><td><code>deploy-N</code></td><td>部署完成</td></tr>
+      </table>
+    </div>
+    <div class="section">
+      <h2>分支体系</h2>
+      <table>
+        <tr><th>格式</th><th>创建者</th></tr>
+        <tr><td><code>requirement/{功能名}</code></td><td>PM</td></tr>
+        <tr><td><code>feature/{N}-{task}</code></td><td>PM / develop</td></tr>
+        <tr><td><code>fix/BUG-XXX</code></td><td>bugfixer</td></tr>
+        <tr><td><code>fix/{N}-review-fail</code></td><td>bugfixer</td></tr>
+        <tr><td><code>fix/{N}-itest-fail</code></td><td>integration</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Deploy flow -->
+<div class="section">
+  <h2>Deploy 流程（唯一 merge main 的角色）</h2>
+  <div class="cmd-block"><pre>
+<span class="comment">Step 1: 部署前检查</span>
+git fetch origin && git tag | Select-String "round-.*-itest$"
+git rev-parse HEAD              <span class="comment"># 回滚点</span>
+
+<span class="comment">Step 2: 拉取代码 + 合并新功能（先 merge 本地，验证后再 push）</span>
+git checkout main && git pull origin main
+<span style="color:#e94560">git merge feature/{N}-{task} --no-ff</span>
+
+<span class="comment">Step 3: 停止旧服务</span>
+$procId = (Get-NetTCPConnection -LocalPort 8000).OwningProcess
+if ($procId) { Stop-Process -Id $procId -Force }
+
+<span class="comment">Step 4: 启动新服务（跑的是 merge 后的新代码）</span>
+Start-Process -WindowStyle Hidden -FilePath python -ArgumentList web_app.py
+
+<span class="comment">Step 5: 部署验证（验证新代码）</span>
+curl -s http://localhost:8000/ + /api/status/stocks/quality/report/datasource/providers
+<span class="comment"># 验证失败 → git reset --hard 回滚点</span>
+
+<span class="comment">Step 6: 推送上线</span>
+git tag deploy-{N} && git push origin main --tags</pre></div>
+</div>
+
+<!-- Commands -->
+<div class="section">
+  <h2>常用命令</h2>
+  <div class="cmd-block"><pre>
+<span class="comment"># 流水线状态</span>
+git tag --list <span style="color:#a5d6ff">"round-*-dev"</span>       <span class="comment"># 待审查</span>
+git tag --list <span style="color:#a5d6ff">"round-*-review"</span>    <span class="comment"># 待集成测试</span>
+git tag --list <span style="color:#a5d6ff">"round-*-itest"</span>     <span class="comment"># 待部署</span>
+
+<span class="comment"># Issues</span>
+gh issue list --label bug --state open           <span class="comment"># 待修复 Bug</span>
+gh issue list --label enhancement --state open   <span class="comment"># 待开发需求</span>
+gh issue list --label question --state open      <span class="comment"># 待讨论</span>
+
+<span class="comment"># 分支</span>
+git branch -r | grep -E <span style="color:#a5d6ff">"(feature/|fix/)"</span>   <span class="comment"># 活跃分支</span></pre></div>
+</div>
+
+<p style="text-align:center;color:#6e7681;font-size:11px;margin-top:40px">2026-05-04 · PM 统一 Issue 分诊 · 标签驱动 · Git tag 流水线</p>
+</body>
+</html>
