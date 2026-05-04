@@ -492,8 +492,21 @@
                     <h2>✅ 数据质量分析</h2>
                     <div style="display: flex; gap: 12px; align-items: center;">
                         <span id="quality-check-time" style="color: #888; font-size: 13px;"></span>
+                    </div>
+                </div>
+
+                <!-- 检查区间 + 查看区间 -->
+                <div style="display: flex; gap: 24px; margin-bottom: 16px; align-items: center;">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <label style="font-size: 13px; color: #555;">检查区间:</label>
+                        <input type="date" id="check-start" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                        <span>~</span>
+                        <input type="date" id="check-end" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                        <button class="btn btn-primary" onclick="triggerQualityCheck()">检查区间段</button>
+                    </div>
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <label style="font-size: 13px; color: #555;">查看区间:</label>
                         <input type="date" id="quality-date" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="loadQualityReport()">
-                        <button class="btn btn-primary" onclick="triggerQualityCheck()">开始检查</button>
                     </div>
                 </div>
 
@@ -1058,14 +1071,27 @@
                 btn.disabled = true;
                 btn.textContent = '检查中...';
 
-                const resp = await fetch('/api/quality/check', { method: 'POST' });
+                // 获取检查区间
+                const startInput = document.getElementById('check-start');
+                const endInput = document.getElementById('check-end');
+                const start = startInput ? startInput.value : '';
+                const end = endInput ? endInput.value : '';
+
+                // 构造 URL（带日期区间参数）
+                let url = '/api/quality/check';
+                if (start && end) {
+                    url += `?start_date=${start}&end_date=${end}`;
+                }
+
+                const resp = await fetch(url, { method: 'POST' });
                 const data = await resp.json();
 
                 // 更新检查时间
-                document.getElementById('quality-check-time').textContent = '检查时间: ' + data.check_time;
+                document.getElementById('quality-check-time').textContent = data.message || '检查时间: ' + data.check_time;
 
-                // 更新报告
-                data.reports.forEach(report => {
+                // 更新报告（区间检查返回多个报告，取最后一个显示）
+                const latestReports = data.reports.length > 1 ? [data.reports[data.reports.length - 1]] : data.reports;
+                latestReports.forEach(report => {
                     const category = report.data_category;
 
                     // 更新分数
@@ -1089,13 +1115,18 @@
                     });
                 });
 
-                updateAnomalyDetails(data.reports);
+                updateAnomalyDetails(latestReports);
+
+                // 区间检查后刷新趋势图
+                if (start && end) {
+                    loadQualityTrend();
+                }
             } catch (e) {
                 alert('质量检查失败: ' + e.message);
             } finally {
                 const btn = event.target;
                 btn.disabled = false;
-                btn.textContent = '开始检查';
+                btn.textContent = '检查区间段';
             }
         }
 

@@ -504,32 +504,56 @@ async def get_quality_report(category: Optional[str] = None, date: Optional[str]
 
 
 @app.post("/api/quality/check")
-async def trigger_quality_check():
-    """触发全量质量检查"""
+async def trigger_quality_check(
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None
+):
+    """触发质量检查，支持日期区间批量生成报告
+
+    Args:
+        start_date: 开始日期（可选，格式 YYYY-MM-DD）
+        end_date: 结束日期（可选，格式 YYYY-MM-DD）
+
+    Returns:
+        检查结果：单次检查返回单个报告，区间检查返回多个报告
+    """
     from sqlalchemy.orm import Session
     from sqlalchemy import create_engine
     from services.data_quality import QualityService
     from config import config
+    from datetime import datetime as dt
 
     engine = create_engine(config.database.connection_url)
     session = Session(bind=engine)
     try:
         service = QualityService(session)
-        # 在线程池执行同步阻塞操作，避免阻塞事件循环 (BUG-105)
         loop = asyncio.get_running_loop()
-        results = await loop.run_in_executor(None, service.check_all)
-        await loop.run_in_executor(None, service.save_report, results)
+
+        # 判断是区间检查还是单次检查
+        if start_date and end_date:
+            # 区间检查：对每一天生成报告
+            from datetime import date
+            start = date.fromisoformat(start_date)
+            end = date.fromisoformat(end_date)
+            results = await loop.run_in_executor(None, service.check_range, start, end)
+            message = f"区间检查完成 ({start_date} ~ {end_date})"
+        else:
+            # 单次检查：当前时间
+            results = await loop.run_in_executor(None, service.check_all)
+            await loop.run_in_executor(None, service.save_report, results)
+            message = "质量检查完成"
 
         # 广播质量更新通知
         await manager.broadcast({
             "type": "quality_update",
-            "message": "质量检查完成",
+            "message": message,
             "reports": results
         })
 
         return {
             "check_time": datetime.now().isoformat(),
-            "reports": results
+            "reports": results,
+            "message": message
         }
     finally:
         session.close()
@@ -1304,8 +1328,7 @@ def _make_kline_progress_callback(loop):
         task_status["progress"] = completed
         task_status["total"] = total
 
-        percent = round(completed * 100 / total, 1) if total > 0 else 0
-        # stats 兼容字符串（来自 _collect_parallel）和字典两种格式
+        percent = int(completed * 100 / total) if total > 0 else 0
         if isinstance(stats, dict):
             records = stats.get('total_records', 0)
             msg = stats.get('message', f"进度: {completed}/{total} ({percent}%), 已采集 {records} 条")
@@ -1334,7 +1357,7 @@ def _make_basic_progress_callback(loop):
         if stop_requested.is_set():
             raise TaskStoppedException("用户请求停止任务")
 
-        percent = round(current * 100 / total, 1) if total > 0 else 0
+        percent = int(current * 100 / total) if total > 0 else 0
         # 同步更新 task_status，确保 REST API 也能获取进度
         task_status["progress"] = current
         task_status["total"] = total
