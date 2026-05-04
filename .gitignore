@@ -56,3 +56,24 @@ mootdx_cache.json
 
 # Claude Code (junctions, local config)
 .claude/
+.mcp.json
+
+# Agent 角色/任务系统（本地工作流，不上库）
+pm.md
+develop1.md
+develop2.md
+bugfixer.md
+test1.md
+integration.md
+puppeteer-agent.md
+depoly.md
+PROGRESS.md
+agent-tasks.md
+fix-requests.md
+pm-questions.md
+deploy-log.md
+devops-report.md
+integration-report.md
+migration-changes.md
+mcp-memory-import.md
+datasources.json
