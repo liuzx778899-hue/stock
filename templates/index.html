@@ -274,8 +274,15 @@
                 </div>
             </div>
 
+            <!-- K线周期切换 -->
+            <div class="period-tabs" style="padding: 8px 16px; background: #1a1f36;">
+                <button class="period-tab active" data-period="day" onclick="switchStockKlinePeriod('day')">日K</button>
+                <button class="period-tab" data-period="week" onclick="switchStockKlinePeriod('week')">周K</button>
+                <button class="period-tab" data-period="month" onclick="switchStockKlinePeriod('month')">月K</button>
+                <button class="period-tab" data-period="year" onclick="switchStockKlinePeriod('year')">年K</button>
+            </div>
             <!-- K线图容器 -->
-            <div id="kline-chart" style="width: 100%; height: calc(100vh - 200px); background: #1a1f36; border-radius: 0 0 8px 8px;"></div>
+            <div id="kline-chart" style="width: 100%; height: calc(100vh - 240px); background: #1a1f36; border-radius: 0 0 8px 8px;"></div>
         </div>
 
         <!-- 数据源管理页面 -->
@@ -2175,11 +2182,16 @@
 
         function showStockDetail(symbol) {
             currentStockSymbol = symbol;
+            currentStockKlinePeriod = 'day';
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
             document.getElementById('page-stock-detail').classList.add('active');
             document.getElementById('detail-title').textContent = symbol;
-            // 加载 K 线数据（KLineChart 内置周期切换）
+            // 重置周期按钮（仅个股详情页）
+            const stockTabs = document.querySelectorAll('#page-stock-detail .period-tab');
+            stockTabs.forEach(t => t.classList.remove('active'));
+            const dayTab = document.querySelector('#page-stock-detail .period-tab[data-period="day"]');
+            if (dayTab) dayTab.classList.add('active');
             loadKlineData();
         }
 
@@ -2205,9 +2217,11 @@
             currentKlineSymbol = symbol;
             currentKlinePeriod = 'day';
 
-            // 重置周期按钮状态
-            document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector('.period-tab[data-period="day"]').classList.add('active');
+            // 重置周期按钮状态（仅模态框内）
+            const modalTabs = document.querySelectorAll('.kline-modal-body .period-tab');
+            modalTabs.forEach(t => t.classList.remove('active'));
+            const modalDayTab = document.querySelector('.kline-modal-body .period-tab[data-period="day"]');
+            if (modalDayTab) modalDayTab.classList.add('active');
 
             // 显示弹窗
             document.getElementById('kline-modal').classList.add('show');
@@ -2222,9 +2236,11 @@
             if (!currentKlineSymbol) return;
             currentKlinePeriod = period;
 
-            // 更新按钮状态
-            document.querySelectorAll('.period-tab').forEach(t => t.classList.remove('active'));
-            document.querySelector(`.period-tab[data-period="${period}"]`).classList.add('active');
+            // 更新按钮状态（仅模态框内）
+            const modalTabs = document.querySelectorAll('.kline-modal-body .period-tab');
+            modalTabs.forEach(t => t.classList.remove('active'));
+            const tab = document.querySelector(`.kline-modal-body .period-tab[data-period="${period}"]`);
+            if (tab) tab.classList.add('active');
 
             await loadKlineData(currentKlineSymbol, period);
         }
@@ -2321,13 +2337,14 @@
             modalChartInstance.createIndicator('VOL', false);
         }
 
+        let currentStockKlinePeriod = 'day';
+
         async function loadKlineData() {
             if (!currentStockSymbol) return;
-            // KLineChart 内置周期切换，只需加载日线数据
             const limit = 500;
 
             try {
-                const resp = await fetch(`/api/stock/${currentStockSymbol}/kline?period=day&limit=${limit}`);
+                const resp = await fetch(`/api/stock/${currentStockSymbol}/kline?period=${currentStockKlinePeriod}&limit=${limit}`);
                 const result = await resp.json();
                 if (!result.data || result.data.length === 0) {
                     document.getElementById('kline-chart').innerHTML = '<div style="text-align:center;padding:100px 0;color:#888;">暂无K线数据，请先采集K线数据</div>';
@@ -2339,6 +2356,16 @@
                 console.error('获取K线数据失败', e);
                 document.getElementById('kline-chart').innerHTML = '<div style="text-align:center;padding:100px 0;color:#e74c3c;">获取K线数据失败: ' + e.message + '</div>';
             }
+        }
+
+        function switchStockKlinePeriod(period) {
+            if (!currentStockSymbol) return;
+            currentStockKlinePeriod = period;
+            const stockTabs = document.querySelectorAll('#page-stock-detail .period-tab');
+            stockTabs.forEach(t => t.classList.remove('active'));
+            const tab = document.querySelector(`#page-stock-detail .period-tab[data-period="${period}"]`);
+            if (tab) tab.classList.add('active');
+            loadKlineData();
         }
 
         function renderKlineChart(data) {
