@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS stock_basic (
     list_status VARCHAR(2) DEFAULT 'L' COMMENT '上市状态：L上市 D退市 P暂停上市',
     delist_date DATE COMMENT '退市日期',
     is_hs VARCHAR(2) COMMENT '是否沪深港通标的：H沪股通 S深股通 N否',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '��建���间',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (ts_code),
     INDEX idx_stock_basic_symbol (symbol),
@@ -118,33 +118,15 @@ CREATE TABLE IF NOT EXISTS datasource_config (
     INDEX idx_datasource_enabled (enabled)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据源配置表';
 
--- ============================================
--- 6. 必盈API Licence池表
--- ============================================
-CREATE TABLE IF NOT EXISTS biying_licence (
-    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
-    licence VARCHAR(100) NOT NULL COMMENT 'Licence密钥',
-    usage_count INT DEFAULT 0 COMMENT '使用次数',
-    error_count INT DEFAULT 0 COMMENT '错误次数',
-    is_current TINYINT(1) DEFAULT 0 COMMENT '是否当前使用',
-    is_available TINYINT(1) DEFAULT 1 COMMENT '是否可用',
-    added_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '添加时间',
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    PRIMARY KEY (id),
-    UNIQUE KEY uk_biying_licence (licence),
-    INDEX idx_biying_current (is_current)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='必盈API Licence池表';
-
 -- 初始化内置数据源配置
 INSERT INTO datasource_config (id, name, type, priority, enabled, is_builtin, description) VALUES
 ('akshare_em', '东方财富', 'akshare', 1, 1, 1, 'AkShare东方财富数据源'),
 ('akshare_sina', '新浪', 'akshare', 2, 1, 1, 'AkShare新浪数据源'),
-('akshare_tencent', '腾讯', 'akshare', 3, 1, 1, 'AkShare腾讯数据源'),
-('biying', '必盈API', 'http', 4, 1, 1, '必盈API付费数据源，需配置Licence')
+('akshare_tencent', '腾讯', 'akshare', 3, 1, 1, 'AkShare腾讯数据源')
 ON DUPLICATE KEY UPDATE name=VALUES(name);
 
 -- ============================================
--- 7. 数据质量检查报告表
+-- 6. 数据质量检查报告表
 -- ============================================
 CREATE TABLE IF NOT EXISTS data_quality_report (
     id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -164,7 +146,7 @@ CREATE TABLE IF NOT EXISTS data_quality_report (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='数据质量检查报告表';
 
 -- ============================================
--- 8. 概念板块表
+-- 7. 概念板块表
 -- ============================================
 CREATE TABLE IF NOT EXISTS concept (
     id INT NOT NULL AUTO_INCREMENT COMMENT '主键ID',
@@ -179,7 +161,7 @@ CREATE TABLE IF NOT EXISTS concept (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='概念板块表';
 
 -- ============================================
--- 9. 股票-概念关联表（多对多）
+-- 8. 股票-概念关联表（多对多）
 -- ============================================
 CREATE TABLE IF NOT EXISTS stock_concept (
     id INT NOT NULL AUTO_INCREMENT COMMENT '主键ID',

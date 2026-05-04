@@ -113,7 +113,7 @@ class DataProvider(ABC):
     @property
     @abstractmethod
     def provider_name(self) -> str:
-        """数据源唯一标识符，如 'eastmoney', 'sina', 'biying'"""
+        """数据源唯一标识符，如 'eastmoney', 'sina', mootdx"""
         ...
 
     @property

@@ -740,54 +740,6 @@ async def run_collect_concept():
         await broadcast_status("error", f"概念板块采集失败: {e}")
 
 
-# ==================== 必盈 API 管理 ====================
-
-@app.get("/api/biying/status")
-async def get_biying_status():
-    """获取必盈 Licence 状态"""
-    from adapters.biying import get_biying_status
-    return {"licences": get_biying_status()}
-
-
-class BiyingAddRequest(BaseModel):
-    licence: str
-
-
-@app.post("/api/biying/add")
-async def add_biying_licence(request: BiyingAddRequest):
-    """添加必盈 Licence"""
-    from adapters.biying import add_biying_licence
-    try:
-        add_biying_licence(request.licence)
-        return {"success": True, "message": "Licence 添加成功"}
-    except Exception as e:
-        return {"success": False, "message": str(e)}
-
-
-@app.delete("/api/biying/{licence}")
-async def remove_biying_licence(licence: str):
-    """删除必盈 Licence"""
-    from adapters.biying import remove_biying_licence
-    try:
-        remove_biying_licence(licence)
-        return {"success": True, "message": "Licence 已删除"}
-    except Exception as e:
-        return {"success": False, "message": str(e)}
-
-
-@app.get("/api/biying/test")
-async def test_biying_api():
-    """测试必盈 API 连接"""
-    from adapters.biying import BiyingProvider
-    try:
-        provider = BiyingProvider()
-        result = provider.health_check()
-        return {"success": result, "message": "连接成功" if result else "连接失败"}
-    except Exception as e:
-        return {"success": False, "message": str(e)}
-
-
-# ==================== 日志管理 API ====================
 
 @app.get("/api/logs/list")
 async def list_logs():

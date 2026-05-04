@@ -49,25 +49,6 @@ providers:
       kline_daily:
         quality_score: 0.6
 
-  biying:
-    class: adapters.biying.BiyingProvider
-    type: http
-    enabled: true
-    priority: 4
-    cost_type: paid
-    description: 必盈API付费数据源，需有效Licence
-    capabilities:
-      stock_basic:
-        quality_score: 0.85
-      stock_industry:
-        quality_score: 0.9
-      stock_area:
-        quality_score: 0.9
-      kline_daily:
-        quality_score: 0.9
-      realtime_quote:
-        quality_score: 0.85
-
   mootdx:
     class: adapters.mootdx_provider.TdxProvider
     type: tcp

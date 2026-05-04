@@ -9,7 +9,7 @@ A股全市场数据采集、质量分析、K线可视化系统。
 - **实时行情** — 当日盘口数据，涨幅榜/跌幅榜/成交量榜
 - **数据质量分析** — 完整度/新鲜度/异常检测，趋势图表
 - **个股K线图** — KLineChart 深色主题，BOLL/MACD/RSI 技术指标
-- **数据源管理** — 5 个 Provider（东方财富/新浪/腾讯/通达信/必盈），优先级/强制选择
+- **数据源管理** — 4 个 Provider（东方财富/新浪/腾讯/通达信），优先级/强制选择
 
 ## 技术栈
 
@@ -18,7 +18,7 @@ A股全市场数据采集、质量分析、K线可视化系统。
 | 后端 | Python 3.11 / FastAPI / SQLAlchemy |
 | 数据库 | OceanBase (MySQL 兼容) |
 | 前端 | Vue 3 + 原生 HTML/ECharts/KLineChart |
-| 数据源 | AkShare / mootdx / 必盈 API |
+| 数据源 | AkShare / mootdx |
 
 ## 快速开始
 
@@ -43,7 +43,7 @@ python web_app.py
 ## 项目结构
 
 ```
-├── adapters/          # 数据源适配器（AkShare/mootdx/必盈）
+├── adapters/          # 数据源适配器（AkShare/mootdx）
 ├── collectors/        # 采集器（基础信息/K线/实时行情）
 ├── services/          # 业务服务（编排器/质量分析/字段合并）
 ├── templates/         # 前端页面

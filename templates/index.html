@@ -93,6 +93,21 @@
         .summary-item .value { font-size: 18px; font-weight: 600; color: #333; margin-top: 4px; }
         .summary-item .value.up { color: #e74c3c; }
         .summary-item .value.down { color: #2ecc71; }
+
+        /* K线弹窗样式 */
+        .kline-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+        .kline-modal.show { display: flex; }
+        .kline-modal-content { background: #1a1f36; border-radius: 12px; width: 90%; max-width: 1200px; max-height: 90vh; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
+        .kline-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: #252b43; color: white; }
+        .kline-modal-title { font-size: 18px; font-weight: 600; }
+        .kline-modal-close { background: none; border: none; color: #9298b4; font-size: 28px; cursor: pointer; padding: 0; line-height: 1; }
+        .kline-modal-close:hover { color: white; }
+        .kline-modal-body { padding: 0; }
+        #kline-modal-chart { width: 100%; height: 70vh; min-height: 400px; }
+        .stock-code-link { color: #667eea; cursor: pointer; }
+        .stock-code-link:hover { text-decoration: underline; }
+        .stock-name-link { color: #333; cursor: pointer; font-weight: 500; }
+        .stock-name-link:hover { color: #667eea; }
     </style>
 </head>
 <body>
@@ -235,10 +250,10 @@
                 <div style="max-height: 600px; overflow-y: auto;">
                     <table class="stocks-table">
                         <thead>
-                            <tr><th>代码</th><th>名称</th><th>行业</th><th>地区</th><th>概念板块</th><th>操作</th></tr>
+                            <tr><th>代码</th><th>名称</th><th>行业</th><th>地区</th><th>概念板块</th></tr>
                         </thead>
                         <tbody id="stocks-table">
-                            <tr><td colspan="4" style="text-align: center; color: #888;">加载中...</td></tr>
+                            <tr><td colspan="5" style="text-align: center; color: #888;">加载中...</td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -302,42 +317,6 @@
                 </div>
             </div>
 
-            <!-- 必盈 Licence 配置模态框 -->
-            <div id="biying-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1000;">
-                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: white; border-radius: 12px; padding: 24px; min-width: 500px; max-width: 80%;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <h3 style="margin: 0; font-size: 18px;">🔑 必盈 API Licence 配置</h3>
-                        <button onclick="closeBiyingModal()" style="background: none; border: none; font-size: 20px; cursor: pointer; color: #888;">✕</button>
-                    </div>
-                    <p style="color: #666; margin-bottom: 16px; font-size: 13px;">
-                        支持多个 Licence 自动切换，当一个额度用完自动切换到下一个。
-                        <a href="https://www.biyingapi.com/get-free-cert.html" target="_blank" style="color: #667eea;">免费获取 Licence</a>
-                    </p>
-                    <div style="margin-bottom: 16px;">
-                        <div class="form-group" style="margin-bottom: 8px;">
-                            <label style="font-size: 13px;">添加新 Licence</label>
-                            <div style="display: flex; gap: 12px;">
-                                <input type="text" id="biying-licence" placeholder="输入必盈 API Licence" style="flex: 1; padding: 8px 10px;">
-                                <button class="btn btn-primary" style="padding: 8px 16px;" onclick="addBiyingLicence()">添加</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div style="margin-bottom: 16px;">
-                        <h4 style="font-size: 13px; margin-bottom: 8px; color: #555;">当前 Licence 池状态</h4>
-                        <div id="biying-status" style="background: #f8f9fa; border-radius: 6px; padding: 10px; border: 1px solid #eee; max-height: 200px; overflow-y: auto;">
-                            加载中...
-                        </div>
-                    </div>
-                    <div style="display: flex; gap: 12px; align-items: center;">
-                        <button class="btn" style="background: #52c41a; color: white; padding: 8px 16px;" onclick="testBiyingAPI()">测试连接</button>
-                        <button class="btn" style="background: #888; color: white; padding: 8px 16px;" onclick="closeBiyingModal()">关闭</button>
-                    </div>
-                    <p style="font-size: 12px; color: #888; margin-top: 12px;">
-                        💡 当一个 Licence 配额用完或连续错误 3 次，系统会自动切换到下一个
-                    </p>
-                    <div id="biying-result" style="margin-top: 12px; font-size: 13px;"></div>
-                </div>
-            </div>
 
             <div class="card">
                 <h2>添加自定义数据源</h2>
@@ -1332,10 +1311,10 @@
                     } else {
                         conceptTags = '<span style="color: #ccc; font-size: 11px;">-</span>';
                     }
-                    return `<tr><td>${s.symbol || s.ts_code}</td><td>${s.name}</td><td>${s.industry || '-'}</td><td>${s.area || '-'}</td><td>${conceptTags}</td><td><button onclick="showStockDetail('${s.symbol || s.ts_code.split('.')[0]}')" style="padding: 4px 12px; border: 1px solid #667eea; border-radius: 4px; background: white; color: #667eea; cursor: pointer; font-size: 12px;">查看</button></td></tr>`;
+                    return `<tr><td><span class="stock-code-link" onclick="showKlineModal('${s.symbol || s.ts_code.split('.')[0]}')">${s.symbol || s.ts_code}</span></td><td><span class="stock-name-link" onclick="showKlineModal('${s.symbol || s.ts_code.split('.')[0]}')">${s.name}</span></td><td>${s.industry || '-'}</td><td>${s.area || '-'}</td><td>${conceptTags}</td></tr>`;
                 }).join('');
             } else {
-                tbody.innerHTML = '<tr><td colspan="6" style="text-align: center; color: #888;">暂无数据，请先采集股票基础信息</td></tr>';
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #888;">暂无数据，请先采集股票基础信息</td></tr>';
             }
         }
 
@@ -1633,7 +1612,6 @@
                                     </label>
                                     <input type="number" id="priority-${s.id}" value="${s.priority}" min="1" max="100" style="width: 60px; padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="updateBuiltinPriority('${s.id}', this.value)">
                                     ${s.priority !== s.default_priority ? `<button class="btn" style="padding: 4px 8px; font-size: 11px; background: #888; color: white;" onclick="resetBuiltinPriority('${s.id}')">重置</button>` : ''}
-                                    ${s.id === 'biying' ? `<button class="btn" style="padding: 4px 12px; font-size: 12px; background: #1890ff; color: white;" onclick="openBiyingModal()">配置Licence</button>` : ''}
                                 ` : `
                                     <button class="btn" style="padding: 4px 12px; font-size: 12px; background: #1890ff; color: white;" onclick="editDataSource('${s.id}')">编辑</button>
                                     <button class="btn" style="padding: 4px 12px; font-size: 12px; background: #ff4d4f; color: white;" onclick="deleteDataSource('${s.id}')">删除</button>
@@ -2190,137 +2168,6 @@
             return div.innerHTML;
         }
 
-        // ==================== 必盈 API 管理 ====================
-        function openBiyingModal() {
-            document.getElementById('biying-modal').style.display = 'block';
-            loadBiyingStatus();
-        }
-
-        function closeBiyingModal() {
-            document.getElementById('biying-modal').style.display = 'none';
-        }
-
-        async function loadBiyingStatus() {
-            try {
-                const resp = await fetch('/api/biying/status');
-                const data = await resp.json();
-                const container = document.getElementById('biying-status');
-
-                if (data.success && data.licences && data.licences.length > 0) {
-                    container.innerHTML = data.licences.map((lic, i) => `
-                        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: ${lic.is_current ? '#e6f7ff' : 'white'}; border-radius: 6px; margin-bottom: 4px; border: 1px solid ${lic.is_current ? '#1890ff' : '#eee'};">
-                            <div>
-                                <span style="font-family: monospace; font-size: 13px;">${lic.licence}</span>
-                                ${lic.is_current ? '<span style="background: #1890ff; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">当前使用</span>' : ''}
-                                ${!lic.is_available ? '<span style="background: #ff4d4f; color: white; padding: 2px 6px; border-radius: 4px; font-size: 11px; margin-left: 8px;">已超限</span>' : ''}
-                            </div>
-                            <div style="font-size: 12px; color: #888;">
-                                使用: ${lic.usage_count} 次 | 错误: ${lic.error_count} 次
-                                <button class="btn" style="padding: 2px 8px; font-size: 11px; background: #ff4d4f; color: white; margin-left: 8px;" onclick="removeBiyingLicence('${lic.full_licence}')">删除</button>
-                            </div>
-                        </div>
-                    `).join('');
-                } else {
-                    container.innerHTML = '<p style="color: #888; text-align: center;">暂无 Licence，请添加</p>';
-                }
-            } catch (e) {
-                document.getElementById('biying-status').innerHTML = '<p style="color: #ff4d4f;">加载失败: ' + e.message + '</p>';
-            }
-        }
-
-        async function addBiyingLicence() {
-            const input = document.getElementById('biying-licence');
-            const licence = input.value.trim();
-            const resultEl = document.getElementById('biying-result');
-
-            if (!licence) {
-                resultEl.textContent = '请输入 Licence';
-                resultEl.style.color = '#ff4d4f';
-                return;
-            }
-
-            resultEl.textContent = '添加中...';
-            resultEl.style.color = '#888';
-
-            try {
-                const resp = await fetch('/api/biying/add', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ licence })
-                });
-                const data = await resp.json();
-                if (data.success) {
-                    resultEl.textContent = '添加成功！';
-                    resultEl.style.color = '#52c41a';
-                    input.value = '';
-                    loadBiyingStatus();
-                } else {
-                    resultEl.textContent = data.message;
-                    resultEl.style.color = '#ff4d4f';
-                }
-            } catch (e) {
-                resultEl.textContent = '添加失败: ' + e.message;
-                resultEl.style.color = '#ff4d4f';
-            }
-        }
-
-        async function removeBiyingLicence(licence) {
-            if (!confirm('确定要删除该 Licence 吗？')) return;
-
-            const resultEl = document.getElementById('biying-result');
-            try {
-                const resp = await fetch('/api/biying/' + encodeURIComponent(licence), { method: 'DELETE' });
-                const data = await resp.json();
-                if (data.success) {
-                    loadBiyingStatus();
-                } else {
-                    alert(data.message);
-                }
-            } catch (e) {
-                alert('删除失败: ' + e.message);
-            }
-        }
-
-        async function testBiyingAPI() {
-            const resultEl = document.getElementById('biying-result');
-            resultEl.textContent = '测试中...';
-            resultEl.style.color = '#888';
-
-            try {
-                const resp = await fetch('/api/biying/test');
-                const data = await resp.json();
-                if (data.success) {
-                    resultEl.textContent = '✅ ' + data.message;
-                    resultEl.style.color = '#52c41a';
-                } else {
-                    resultEl.textContent = '❌ ' + data.message;
-                    resultEl.style.color = '#ff4d4f';
-                }
-            } catch (e) {
-                resultEl.textContent = '测试失败: ' + e.message;
-                resultEl.style.color = '#ff4d4f';
-            }
-        }
-
-        async function switchBiyingLicence() {
-            const resultEl = document.getElementById('biying-result');
-            try {
-                const resp = await fetch('/api/biying/switch', { method: 'POST' });
-                const data = await resp.json();
-                if (data.success) {
-                    resultEl.textContent = '✅ ' + data.message;
-                    resultEl.style.color = '#52c41a';
-                    loadBiyingStatus();
-                } else {
-                    resultEl.textContent = '❌ ' + data.message;
-                    resultEl.style.color = '#ff4d4f';
-                }
-            } catch (e) {
-                resultEl.textContent = '切换失败: ' + e.message;
-                resultEl.style.color = '#ff4d4f';
-            }
-        }
-
         // ==================== 个股K线图 ====================
         let currentStockSymbol = '';
         let klineChartInstance = null;
@@ -2346,6 +2193,110 @@
             document.getElementById('page-stocks').classList.add('active');
             document.querySelector('.nav-item[data-page="stocks"]')?.classList.add('active');
             loadStocks();
+        }
+
+        // ==================== K线弹窗 ====================
+        let modalChartInstance = null;
+
+        async function showKlineModal(symbol) {
+            if (!symbol) return;
+
+            // 显示弹窗
+            document.getElementById('kline-modal').classList.add('show');
+            document.getElementById('kline-modal-title').textContent = symbol;
+            document.getElementById('kline-modal-price').textContent = '';
+            document.getElementById('kline-modal-change').textContent = '';
+
+            // 加载K线数据
+            try {
+                const resp = await fetch(`/api/stock/${symbol}/kline?period=day&limit=300`);
+                const result = await resp.json();
+                if (!result.data || result.data.length === 0) {
+                    document.getElementById('kline-modal-chart').innerHTML = '<div style="text-align:center;padding:150px 0;color:#888;">暂无K线数据</div>';
+                    return;
+                }
+
+                // 显示最新价格
+                const latest = result.data[0];
+                if (latest) {
+                    document.getElementById('kline-modal-price').textContent = latest.close;
+                    const chg = latest.pct_chg || 0;
+                    const chgColor = chg >= 0 ? '#EF5350' : '#26A69A';
+                    const chgSign = chg >= 0 ? '+' : '';
+                    document.getElementById('kline-modal-change').textContent = `${chgSign}${chg.toFixed(2)}%`;
+                    document.getElementById('kline-modal-change').style.color = chgColor;
+                }
+
+                renderModalKlineChart(result.data);
+            } catch (e) {
+                console.error('获取K线数据失败', e);
+                document.getElementById('kline-modal-chart').innerHTML = '<div style="text-align:center;padding:150px 0;color:#e74c3c;">加载失败</div>';
+            }
+        }
+
+        function closeKlineModal(event) {
+            if (event && event.target !== document.getElementById('kline-modal')) return;
+            document.getElementById('kline-modal').classList.remove('show');
+            // 销毁图表实例释放内存
+            if (modalChartInstance) {
+                modalChartInstance.dispose();
+                modalChartInstance = null;
+            }
+        }
+
+        function renderModalKlineChart(data) {
+            if (modalChartInstance) {
+                modalChartInstance.dispose();
+            }
+
+            if (typeof klinecharts === 'undefined') {
+                document.getElementById('kline-modal-chart').innerHTML = '<div style="text-align:center;padding:150px 0;color:#888;">KLineChart 库未加载</div>';
+                return;
+            }
+
+            const sortedData = [...data].reverse();
+            const klineData = sortedData.map(d => ({
+                timestamp: new Date(d.trade_date + 'T15:00:00').getTime(),
+                open: parseFloat(d.open),
+                high: parseFloat(d.high),
+                low: parseFloat(d.low),
+                close: parseFloat(d.close),
+                volume: Math.round(d.volume / 100),
+                turnover: parseFloat(d.amount || 0)
+            }));
+
+            modalChartInstance = klinecharts.init('kline-modal-chart', {
+                styles: {
+                    grid: {
+                        horizontal: { color: '#2a2e3f', style: 1 },
+                        vertical: { color: '#2a2e3f', style: 1 }
+                    },
+                    candle: {
+                        bar: {
+                            upColor: '#EF5350',
+                            downColor: '#26A69A',
+                            upBorderColor: '#EF5350',
+                            downBorderColor: '#26A69A',
+                            upWickColor: '#EF5350',
+                            downWickColor: '#26A69A',
+                            noChangeColor: '#888888'
+                        },
+                        tooltip: { showType: 'standard' }
+                    },
+                    xAxis: {
+                        axisLine: { color: '#4a4f63' },
+                        tickText: { color: '#9298b4' }
+                    },
+                    yAxis: {
+                        axisLine: { color: '#4a4f63' },
+                        tickText: { color: '#9298b4' }
+                    }
+                }
+            });
+
+            modalChartInstance.applyNewData(klineData);
+            modalChartInstance.createIndicator('MA', false, { id: 'candle_pane' });
+            modalChartInstance.createIndicator('VOL', false);
         }
 
         async function loadKlineData() {
@@ -2524,5 +2475,22 @@
             }
         };
     </script>
+
+    <!-- K线弹窗 -->
+    <div id="kline-modal" class="kline-modal" onclick="closeKlineModal(event)">
+        <div class="kline-modal-content" onclick="event.stopPropagation()">
+            <div class="kline-modal-header">
+                <div>
+                    <span class="kline-modal-title" id="kline-modal-title">股票K线</span>
+                    <span id="kline-modal-price" style="margin-left: 16px; font-size: 20px; font-weight: bold;"></span>
+                    <span id="kline-modal-change" style="margin-left: 8px; font-size: 14px;"></span>
+                </div>
+                <button class="kline-modal-close" onclick="closeKlineModal()">&times;</button>
+            </div>
+            <div class="kline-modal-body">
+                <div id="kline-modal-chart"></div>
+            </div>
+        </div>
+    </div>
 </body>
 </html>
