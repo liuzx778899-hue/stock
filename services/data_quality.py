@@ -46,8 +46,14 @@ class CompletenessChecker:
         'realtime_quote': ['symbol', 'price', 'open', 'high', 'low', 'volume', 'update_time']
     }
 
-    def check(self, session: Session, category: str) -> Dict[str, Any]:
-        """检查指定类别的字段覆盖率"""
+    def check(self, session: Session, category: str, target_date: Optional[date] = None) -> Dict[str, Any]:
+        """检查指定类别的字段覆盖率
+
+        Args:
+            session: 数据库会话
+            category: 数据类别
+            target_date: 目标日期（可选，用于历史检查，仅支持 kline_daily）
+        """
         if category not in self.CATEGORY_FIELDS:
             return {'total_records': 0, 'fields': {}}
 
@@ -61,19 +67,25 @@ class CompletenessChecker:
         if not table_name:
             return {'total_records': 0, 'fields': {}}
 
-        # 获取总记录数
-        count_sql = f"SELECT COUNT(*) as cnt FROM {table_name}"
+        # 获取总记录数（kline_daily 支持按日期过滤）
+        if category == 'kline_daily' and target_date:
+            count_sql = f"SELECT COUNT(*) as cnt FROM {table_name} WHERE trade_date = '{target_date}'"
+        else:
+            count_sql = f"SELECT COUNT(*) as cnt FROM {table_name}"
         result = session.execute(text(count_sql)).fetchone()
         total_count = result[0] if result else 0
 
         if total_count == 0:
             return {'total_records': 0, 'fields': {}}
 
-        # 检查每个字段
+        # 检查每个字段（kline_daily 支持按日期过滤）
         field_results = {}
         for field_name in fields:
             try:
-                sql = f"SELECT COUNT(*) as cnt FROM {table_name} WHERE `{field_name}` IS NOT NULL AND `{field_name}` != ''"
+                if category == 'kline_daily' and target_date:
+                    sql = f"SELECT COUNT(*) as cnt FROM {table_name} WHERE `{field_name}` IS NOT NULL AND `{field_name}` != '' AND trade_date = '{target_date}'"
+                else:
+                    sql = f"SELECT COUNT(*) as cnt FROM {table_name} WHERE `{field_name}` IS NOT NULL AND `{field_name}` != ''"
                 result = session.execute(text(sql)).fetchone()
                 covered = result[0] if result else 0
                 rate = covered / total_count if total_count > 0 else 0
@@ -104,11 +116,20 @@ class CompletenessChecker:
 class FreshnessChecker:
     """新鲜度检查器"""
 
-    def check(self, session: Session, category: str) -> Dict[str, Any]:
-        """检查数据新鲜度"""
+    def check(self, session: Session, category: str, target_date: Optional[date] = None) -> Dict[str, Any]:
+        """检查数据新鲜度
+
+        Args:
+            session: 数据库会话
+            category: 数据类别
+            target_date: 目标日期（可选，用于历史检查，仅支持 kline_daily）
+        """
         try:
+            # 基准日期：target_date 或今天
+            base_date = target_date or date.today()
+
             if category == 'stock_basic':
-                # 检查股票基础信息的更新时间（从 collect_log）
+                # 股票基础信息无时间维度，不支持历史检查
                 sql = """
                     SELECT MAX(end_time) as last_time
                     FROM collect_log
@@ -117,18 +138,19 @@ class FreshnessChecker:
                 result = session.execute(text(sql)).fetchone()
                 last_collection = result[0] if result and result[0] else None
 
-                # 检查最新上市日期（list_date 可能为空）
                 sql2 = "SELECT MAX(list_date) as latest FROM stock_basic WHERE list_date IS NOT NULL"
                 result2 = session.execute(text(sql2)).fetchone()
                 latest_data_date = result2[0] if result2 and result2[0] else None
 
-                # 如果 list_date 不可用，用 last_collection 代替（第三十八轮修复）
                 if latest_data_date is None and last_collection is not None:
                     latest_data_date = last_collection
 
             elif category == 'kline_daily':
-                # 检查K线最新交易日
-                sql = "SELECT MAX(trade_date) as latest FROM stock_daily_kline"
+                # K线支持历史检查：查询 <= target_date 的最新交易日
+                if target_date:
+                    sql = f"SELECT MAX(trade_date) as latest FROM stock_daily_kline WHERE trade_date <= '{target_date}'"
+                else:
+                    sql = "SELECT MAX(trade_date) as latest FROM stock_daily_kline"
                 result = session.execute(text(sql)).fetchone()
                 latest_data_date = result[0] if result and result[0] else None
 
@@ -141,7 +163,7 @@ class FreshnessChecker:
                 last_collection = result2[0] if result2 and result2[0] else None
 
             elif category == 'realtime_quote':
-                # 检查实时行情更新时间
+                # 实时行情不保留历史，不支持历史检查
                 sql = "SELECT MAX(update_time) as latest FROM stock_realtime_quote"
                 result = session.execute(text(sql)).fetchone()
                 latest_data_date = result[0] if result and result[0] else None
@@ -154,11 +176,11 @@ class FreshnessChecker:
                     'is_trading_day_aligned': False
                 }
 
-            # 计算滞后天数（注意: datetime 是 date 的子类，必须优先判断）
+            # 计算滞后天数（相对于 base_date）
             if isinstance(latest_data_date, datetime):
-                days_lag = (datetime.now() - latest_data_date).days
+                days_lag = (base_date - latest_data_date.date()).days
             elif isinstance(latest_data_date, date):
-                days_lag = (date.today() - latest_data_date).days
+                days_lag = (base_date - latest_data_date).days
             else:
                 days_lag = 999
 
@@ -195,13 +217,22 @@ class FreshnessChecker:
 class AnomalyDetector:
     """异常检测器"""
 
-    def check(self, session: Session, category: str) -> Dict[str, Any]:
-        """检测数据异常"""
+    def check(self, session: Session, category: str, target_date: Optional[date] = None) -> Dict[str, Any]:
+        """检测数据异常
+
+        Args:
+            session: 数据库会话
+            category: 数据类别
+            target_date: 目标日期（可选，用于历史检查，仅支持 kline_daily）
+        """
         anomalies = []
+
+        # 基准日期：target_date 或今天
+        base_date = target_date or date.today()
 
         try:
             if category == 'stock_basic':
-                # 检查重复记录
+                # 检查重复记录（无时间维度，不支持历史检查）
                 sql = """
                     SELECT ts_code, COUNT(*) as cnt
                     FROM stock_basic
@@ -218,12 +249,14 @@ class AnomalyDetector:
                 ))
 
             elif category == 'kline_daily':
-                # 检查价格为0
-                sql = """
+                # 检查价格为0（支持历史检查）
+                start_date = (base_date - timedelta(days=30)).strftime('%Y-%m-%d')
+                sql = f"""
                     SELECT DISTINCT ts_code
                     FROM stock_daily_kline
                     WHERE (`open` = 0 OR `high` = 0 OR `low` = 0 OR `close` = 0)
-                    AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                    AND trade_date >= '{start_date}'
+                    AND trade_date <= '{base_date}'
                     LIMIT 10
                 """
                 result = session.execute(text(sql)).fetchall()
@@ -235,11 +268,12 @@ class AnomalyDetector:
                 ))
 
                 # 检查涨跌幅异常（>20%）
-                sql = """
+                sql = f"""
                     SELECT DISTINCT ts_code
                     FROM stock_daily_kline
                     WHERE ABS(pct_chg) > 20
-                    AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                    AND trade_date >= '{start_date}'
+                    AND trade_date <= '{base_date}'
                     LIMIT 10
                 """
                 result = session.execute(text(sql)).fetchall()
@@ -250,12 +284,13 @@ class AnomalyDetector:
                     samples=pct_extreme[:5]
                 ))
 
-                # 检查成交量为0（添加括号修复 OR/AND 优先级问题 BUG-084）
-                sql = """
+                # 检查成交量为0
+                sql = f"""
                     SELECT DISTINCT ts_code
                     FROM stock_daily_kline
                     WHERE (volume = 0 OR volume IS NULL)
-                    AND trade_date >= DATE_SUB(CURDATE(), INTERVAL 30 DAY)
+                    AND trade_date >= '{start_date}'
+                    AND trade_date <= '{base_date}'
                     LIMIT 10
                 """
                 result = session.execute(text(sql)).fetchall()
@@ -267,7 +302,7 @@ class AnomalyDetector:
                 ))
 
             elif category == 'realtime_quote':
-                # 检查实时行情异常
+                # 实时行情不保留历史，不支持历史检查
                 sql = """
                     SELECT DISTINCT symbol
                     FROM stock_realtime_quote
@@ -282,7 +317,6 @@ class AnomalyDetector:
                     samples=price_zeros[:5]
                 ))
 
-                # 检查成交量为0
                 sql = """
                     SELECT DISTINCT symbol
                     FROM stock_realtime_quote
@@ -350,26 +384,35 @@ class QualityService:
         self.freshness_checker = FreshnessChecker()
         self.anomaly_detector = AnomalyDetector()
 
-    def check_all(self) -> List[Dict[str, Any]]:
-        """检查所有数据类别"""
+    def check_all(self, target_date: Optional[date] = None) -> List[Dict[str, Any]]:
+        """检查所有数据类别
+
+        Args:
+            target_date: 目标日期（可选，用于历史检查，仅支持 kline_daily）
+        """
         results = []
         for category in self.CATEGORIES:
-            result = self.check_category(category)
+            result = self.check_category(category, target_date)
             results.append(result)
         return results
 
-    def check_category(self, category: str) -> Dict[str, Any]:
-        """检查指定类别"""
+    def check_category(self, category: str, target_date: Optional[date] = None) -> Dict[str, Any]:
+        """检查指定类别
+
+        Args:
+            category: 数据类别
+            target_date: 目标日期（可选，用于历史检查，仅支持 kline_daily）
+        """
         # 完整度检查
-        completeness_detail = self.completeness_checker.check(self.session, category)
+        completeness_detail = self.completeness_checker.check(self.session, category, target_date)
         completeness_score = self.completeness_checker.calculate_score(completeness_detail)
 
         # 新鲜度检查
-        freshness_detail = self.freshness_checker.check(self.session, category)
+        freshness_detail = self.freshness_checker.check(self.session, category, target_date)
         freshness_score = self.freshness_checker.calculate_score(freshness_detail)
 
         # 异常检测
-        anomaly_detail = self.anomaly_detector.check(self.session, category)
+        anomaly_detail = self.anomaly_detector.check(self.session, category, target_date)
         anomaly_score = self.anomaly_detector.calculate_score(anomaly_detail)
 
         # 总分 = 完整度×0.4 + 新鲜度×0.3 + 异常×0.3
@@ -399,10 +442,44 @@ class QualityService:
             'status': status
         }
 
+    def check_range(self, start_date: date, end_date: date) -> List[Dict[str, Any]]:
+        """对日期区间内的每一天执行检查并保存报告（仅 kline_daily 支持历史检查）
+
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+
+        Returns:
+            生成的报告列表
+        """
+        results = []
+        current = start_date
+        while current <= end_date:
+            # 只检查 kline_daily（其他类别不支持历史）
+            result = self.check_category('kline_daily', target_date=current)
+            result['check_time'] = current
+            results.append(result)
+            current += timedelta(days=1)
+
+        # 保存报告
+        self.save_report(results)
+        return results
+
     def save_report(self, results: List[Dict[str, Any]]) -> None:
-        """保存检查报告到数据库"""
-        check_time = datetime.now()
+        """保存检查报告到数据库
+
+        Args:
+            results: 检查结果列表，可包含 check_time 字段指定报告时间
+        """
         for result in results:
+            # 支持自定义 check_time（历史检查），默认使用当前时间
+            if 'check_time' in result:
+                check_time = result['check_time']
+                if isinstance(check_time, date) and not isinstance(check_time, datetime):
+                    check_time = datetime.combine(check_time, datetime.min.time())
+            else:
+                check_time = datetime.now()
+
             report = DataQualityReport(
                 check_time=check_time,
                 data_category=result['data_category'],
