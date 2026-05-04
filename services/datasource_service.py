@@ -41,7 +41,6 @@ PROVIDER_DISPLAY_NAMES = {
     'eastmoney': '东方财富（AkShare）',
     'sina': '新浪（AkShare）',
     'tencent': '腾讯（AkShare）',
-    'biying': '必盈 API',
 }
 
 # 内置 Provider 默认优先级
@@ -49,7 +48,6 @@ BUILTIN_DEFAULT_PRIORITIES = {
     'eastmoney': 1,
     'sina': 2,
     'tencent': 3,
-    'biying': 4,
 }
 
 
@@ -71,7 +69,6 @@ class DataSourceService:
         'qq.com',
         'tushare.pro',
         'akshare',
-        'biyingapi.com',
         'localhost',
         '127.0.0.1',
         '192.168.',

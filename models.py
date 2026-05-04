@@ -135,24 +135,6 @@ class DatasourceConfig(Base):
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
 
 
-class BiyingLicence(Base):
-    """必盈API Licence池表"""
-    __tablename__ = 'biying_licence'
-    __table_args__ = (
-        Index('idx_biying_current', 'is_current'),
-        {'comment': '必盈API Licence池表'}
-    )
-
-    id = Column(BigInteger, primary_key=True, autoincrement=True)
-    licence = Column(String(100), nullable=False, unique=True, comment='Licence密钥')
-    usage_count = Column(Integer, default=0, comment='使用次数')
-    error_count = Column(Integer, default=0, comment='错误次数')
-    is_current = Column(Integer, default=0, comment='是否当前使用')
-    is_available = Column(Integer, default=1, comment='是否可用')
-    added_at = Column(DateTime, default=datetime.now, comment='添加时间')
-    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
-
-
 class DataQualityReport(Base):
     """数据质量检查报告表"""
     __tablename__ = 'data_quality_report'
