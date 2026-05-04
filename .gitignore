@@ -54,6 +54,10 @@ frontend/.npm/
 # 数据源缓存
 mootdx_cache.json
 
+# 需求文档图片（仅本地参考）
+requirements/**/*.jpg
+requirements/**/*.png
+
 # Claude Code (junctions, local config)
 .claude/
 .mcp.json
