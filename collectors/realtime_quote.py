@@ -167,8 +167,9 @@ class RealtimeQuoteCollector(BaseCollector):
             return f"{symbol}.SH"
         elif symbol.startswith(('0', '3')):
             return f"{symbol}.SZ"
-        else:
-            return f"{symbol}.SZ"
+        elif symbol.startswith(('4', '8', '92', '93')):
+            return f"{symbol}.BJ"
+        return f"{symbol}.SZ"
 
     def _save_to_db(self, df: pd.DataFrame) -> int:
         """保存到数据库（UPSERT）"""
