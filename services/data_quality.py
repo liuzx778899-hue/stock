@@ -363,7 +363,7 @@ class AnomalyDetector:
         total_checked = detail.get('total_checked', 1)
 
         if total_checked == 0:
-            return 100.0
+            return 0.0
 
         total_anomalies = sum(a['count'] for a in anomalies)
         anomaly_rate = total_anomalies / total_checked
