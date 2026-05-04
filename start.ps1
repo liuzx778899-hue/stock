@@ -3,7 +3,7 @@
 
 param(
     [string]$Mode = "all",      # all | backend | frontend
-    [string]$DBPassword = "REMOVED_PASSWORD"
+    [string]$DBPassword = ""
 )
 
 $ErrorActionPreference = "Stop"

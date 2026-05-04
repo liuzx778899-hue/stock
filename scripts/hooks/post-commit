@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """
-Git post-commit hook: 解析 commit message → 更新 agent-tasks.md
+Git post-commit hook: 检测分支名 → 提示下一步操作
 使用方法：复制到 .git/hooks/post-commit（无后缀）
+
+分支命名约定：feature/{轮次}-{任务}
 """
 
-import re
 import subprocess
-import os
+import re
+
+def get_current_branch():
+    """获取当前分支名"""
+    result = subprocess.run(
+        ['git', 'branch', '--show-current'],
+        capture_output=True, text=True
+    )
+    return result.stdout.strip()
 
 def get_commit_message():
     """获取最新 commit message"""
@@ -16,64 +25,44 @@ def get_commit_message():
     )
     return result.stdout.strip()
 
-def parse_task_from_message(msg):
-    """解析 commit message 中的任务编号
-
-    支持格式：
-    - feat: xxx #54-T1
-    - fix: xxx #53-T2
-    - feat: xxx (第五十四轮 T-2)
-    """
-    # 格式1: #XX-TY
-    match = re.search(r'#(\d+)-T(\d+)', msg)
+def parse_branch_info(branch):
+    """解析分支名获取轮次和任务"""
+    # 格式: feature/55-t2 或 feature/55-t2-api
+    match = re.match(r'feature/(\d+)-t(\d+)', branch)
     if match:
-        return f"第五{num_to_cn(int(match.group(1)))}轮 T-{match.group(2)}"
-
-    # 格式2: (第五XX轮 T-Y)
-    match = re.search(r'第五(\S+)轮\s+T-?(\d+)', msg)
-    if match:
-        return f"第五{match.group(1)}轮 T-{match.group(2)}"
-
-    return None
-
-def num_to_cn(num):
-    """数字转中文"""
-    mapping = {10: '十', 20: '二十', 30: '三十', 40: '四十', 50: '五十',
-               51: '五十一', 52: '五十二', 53: '五十三', 54: '五十四',
-               55: '五十五', 60: '六十'}
-    return mapping.get(num, str(num))
-
-def update_agent_tasks(task_id):
-    """更新 agent-tasks.md 中任务状态为【已完成】"""
-    tasks_file = 'agent-tasks.md'
-    if not os.path.exists(tasks_file):
-        print(f"[hook] {tasks_file} 不存在，跳过")
-        return
-
-    with open(tasks_file, 'r', encoding='utf-8') as f:
-        content = f.read()
-
-    # 查找并更新任务状态
-    # 匹配: - [ ] T-X: 或 - [x] T-X:
-    pattern = rf'(- \[ \] T-?{task_id.split("-")[-1]}:)'
-    if re.search(pattern, content):
-        content = re.sub(pattern, lambda m: m.group(0).replace('[ ]', '[x]'), content)
-        with open(tasks_file, 'w', encoding='utf-8') as f:
-            f.write(content)
-        print(f"[hook] ✅ 已更新任务状态: {task_id}")
-    else:
-        print(f"[hook] ⚠️ 未找到任务: {task_id}")
+        return int(match.group(1)), int(match.group(2))
+    return None, None
 
 def main():
+    branch = get_current_branch()
     msg = get_commit_message()
+
+    print(f"[hook] 分支: {branch}")
     print(f"[hook] Commit: {msg}")
 
-    task = parse_task_from_message(msg)
-    if task:
-        print(f"[hook] 识别任务: {task}")
-        update_agent_tasks(task)
+    round_num, task_num = parse_branch_info(branch)
+
+    if round_num and task_num:
+        print(f"[hook] ✅ 任务识别: Round {round_num} T-{task_num}")
+        print(f"[hook] 提示: 完成后执行以下命令:")
+        print(f"[hook]   git checkout main")
+        print(f"[hook]   git merge {branch} --no-ff -m 'feat({round_num}): T-{task_num} 完成'")
+        print(f"[hook]   git tag round-{round_num}-dev")
+        print(f"[hook]   git push origin main --tags")
+    elif branch == 'main' or branch == 'master':
+        # 主分支提交，检查是否有 tag
+        result = subprocess.run(
+            ['git', 'tag', '--list', '*-dev'],
+            capture_output=True, text=True
+        )
+        tags = result.stdout.strip().split('\n')
+        if tags and tags[0]:
+            print(f"[hook] ⚠️ 主分支有待审查 tag: {tags}")
+            print(f"[hook] 提示: 通知测试 Agent 执行 /review")
+        else:
+            print("[hook] ✅ 主分支提交，无待审查任务")
     else:
-        print("[hook] 未识别任务编号，跳过更新")
+        print(f"[hook] 分支 '{branch}' 不符合 feature/{轮次}-{任务} 格式")
 
 if __name__ == '__main__':
     main()
