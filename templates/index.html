@@ -594,6 +594,10 @@
                 <div class="card" style="margin-top: 20px;">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
                         <h3 style="margin: 0;">📊 质量趋势分析</h3>
+                        <div style="display: flex; gap: 8px; align-items: center;">
+                            <label style="font-size: 13px;">截止日期:</label>
+                            <input type="date" id="trend-end" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="loadQualityTrend()">
+                        </div>
                     </div>
 
                     <!-- 类别切换 Tab -->
@@ -749,7 +753,15 @@
                         String(today.getDate()).padStart(2, '0');
                 }
                 loadQualityReport();
-                // 加载质量趋势图（第五十一轮）
+                // 初始化质量趋势截止日期为今天
+                const te = document.getElementById('trend-end');
+                if (te && !te.value) {
+                    const today = new Date();
+                    te.value = today.getFullYear() + '-' +
+                        String(today.getMonth() + 1).padStart(2, '0') + '-' +
+                        String(today.getDate()).padStart(2, '0');
+                }
+                // 加载质量趋势图
                 loadQualityTrend();
             }
         }
@@ -919,10 +931,15 @@
 
         async function loadQualityTrend() {
             try {
-                // 默认今天，再往前推 30 天
-                const today = new Date();
-                const end = today.toISOString().slice(0, 10);
-                const startDate = new Date(today);
+                const endInput = document.getElementById('trend-end');
+                let end = endInput ? endInput.value : '';
+                if (!end) {
+                    const today = new Date();
+                    end = today.toISOString().slice(0, 10);
+                    if (endInput) endInput.value = end;
+                }
+                const endDate = new Date(end);
+                const startDate = new Date(endDate);
                 startDate.setDate(startDate.getDate() - 30);
                 const start = startDate.toISOString().slice(0, 10);
 
