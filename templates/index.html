@@ -713,7 +713,7 @@
             if (pageName === 'stocks') {
                 // 销毁K线图表实例
                 if (klineChartInstance) {
-                    klineChartInstance.dispose();
+                    if (typeof klineChartInstance.dispose === 'function') klineChartInstance.dispose();
                     klineChartInstance = null;
                 }
                 loadStocks();
@@ -2186,7 +2186,7 @@
         function showStockList() {
             // 销毁图表实例释放内存
             if (klineChartInstance) {
-                klineChartInstance.dispose();
+                if (typeof klineChartInstance.dispose === 'function') klineChartInstance.dispose();
                 klineChartInstance = null;
             }
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
@@ -2261,14 +2261,14 @@
             document.getElementById('kline-modal').classList.remove('show');
             // 销毁图表实例释放内存
             if (modalChartInstance) {
-                modalChartInstance.dispose();
+                if (typeof modalChartInstance.dispose === 'function') modalChartInstance.dispose();
                 modalChartInstance = null;
             }
         }
 
         function renderModalKlineChart(data) {
             if (modalChartInstance) {
-                modalChartInstance.dispose();
+                if (typeof modalChartInstance.dispose === 'function') modalChartInstance.dispose();
             }
 
             if (typeof klinecharts === 'undefined') {
@@ -2344,7 +2344,7 @@
         function renderKlineChart(data) {
             // 销毁旧图表实例
             if (klineChartInstance) {
-                klineChartInstance.dispose();
+                if (typeof klineChartInstance.dispose === 'function') klineChartInstance.dispose();
             }
 
             // 检查 KLineChart 是否加载
