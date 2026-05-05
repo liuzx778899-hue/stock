@@ -474,19 +474,13 @@
                     </div>
                 </div>
 
-                <!-- 检查区间 + 查看区间 -->
-                <div style="display: flex; gap: 24px; margin-bottom: 16px; align-items: center;">
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <label style="font-size: 13px; color: #555;">检查区间:</label>
-                        <input type="date" id="check-start" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                        <span>~</span>
-                        <input type="date" id="check-end" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
-                        <button class="btn btn-primary" onclick="triggerQualityCheck()">检查区间段</button>
-                    </div>
-                    <div style="display: flex; gap: 8px; align-items: center;">
-                        <label style="font-size: 13px; color: #555;">查看区间:</label>
-                        <input type="date" id="quality-date" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px;" onchange="loadQualityReport()">
-                    </div>
+                <!-- 检查区间 -->
+                <div style="display: flex; gap: 8px; margin-bottom: 16px; align-items: center;">
+                    <label style="font-size: 13px; color: #555;">检查区间:</label>
+                    <input type="date" id="check-start" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                    <span>~</span>
+                    <input type="date" id="check-end" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;">
+                    <button class="btn btn-primary" onclick="triggerQualityCheck()">检查区间段</button>
                 </div>
 
                 <!-- 质量评分卡片 -->
@@ -569,17 +563,9 @@
                     </div>
                 </div>
 
-                <!-- 质量趋势分析（第五十三轮优化：单图 + Tab） -->
+                <!-- 质量趋势分析（单图3线，由检查区间控制） -->
                 <div class="card" style="margin-top: 20px;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
-                        <h3 style="margin: 0;">📊 质量趋势分析</h3>
-                        <div style="display: flex; gap: 8px; align-items: center;">
-                            <label style="font-size: 13px;">开始:</label>
-                            <input type="date" id="trend-start" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="loadQualityTrend()">
-                            <label style="font-size: 13px;">结束:</label>
-                            <input type="date" id="trend-end" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="loadQualityTrend()">
-                        </div>
-                    </div>
+                    <h3 style="margin: 0 0 16px 0;">📊 质量趋势分析</h3>
 
                     <!-- 类别切换 Tab -->
                     <div style="display: flex; gap: 8px; margin-bottom: 12px;">
@@ -726,31 +712,24 @@
             if (pageName === 'logs') loadLogsList();
             if (pageName === 'quality') {
                 // 日期选择器默认当天（第三十八轮）
-                const qDate = document.getElementById('quality-date');
-                if (qDate && !qDate.value) {
-                    const today = new Date();
-                    qDate.value = today.getFullYear() + '-' +
-                        String(today.getMonth() + 1).padStart(2, '0') + '-' +
-                        String(today.getDate()).padStart(2, '0');
-                }
-                loadQualityReport();
-                // 初始化趋势区间（开始=今天-30天，结束=今天）
-                const ts = document.getElementById('trend-start');
-                const te = document.getElementById('trend-end');
+                // 初始化检查区间（开始=今天-30天，结束=今天）
+                const cs = document.getElementById('check-start');
+                const ce = document.getElementById('check-end');
                 const today = new Date();
-                if (te && !te.value) {
-                    te.value = today.getFullYear() + '-' +
+                if (ce && !ce.value) {
+                    ce.value = today.getFullYear() + '-' +
                         String(today.getMonth() + 1).padStart(2, '0') + '-' +
                         String(today.getDate()).padStart(2, '0');
                 }
-                if (ts && !ts.value) {
+                if (cs && !cs.value) {
                     const past = new Date(today);
                     past.setDate(past.getDate() - 30);
-                    ts.value = past.getFullYear() + '-' +
+                    cs.value = past.getFullYear() + '-' +
                         String(past.getMonth() + 1).padStart(2, '0') + '-' +
                         String(past.getDate()).padStart(2, '0');
                 }
-                // 加载质量趋势图
+                // 加载质量报告和趋势图
+                loadQualityReport();
                 loadQualityTrend();
             }
         }
@@ -758,7 +737,8 @@
         // ==================== 数据质量 (Q-4) ====================
         async function loadQualityReport() {
             try {
-                const dateInput = document.getElementById('quality-date');
+                // 使用检查区间结束日期加载最新报告
+                const dateInput = document.getElementById('check-end');
                 const selectedDate = dateInput ? dateInput.value : '';
                 const url = selectedDate
                     ? `/api/quality/report?date=${selectedDate}`
@@ -920,8 +900,9 @@
 
         async function loadQualityTrend() {
             try {
-                const startInput = document.getElementById('trend-start');
-                const endInput = document.getElementById('trend-end');
+                // 使用检查区间的日期范围
+                const startInput = document.getElementById('check-start');
+                const endInput = document.getElementById('check-end');
                 let start = startInput ? startInput.value : '';
                 let end = endInput ? endInput.value : '';
                 if (!start || !end) {
