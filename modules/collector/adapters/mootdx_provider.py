@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import re
 import threading
@@ -809,7 +810,13 @@ class TdxProvider(DataProvider):
                 end_date = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:8]}"
 
             # 使用 k 方法获取日期范围内的K线
-            df = quotes.k(symbol=code, begin=start_date, end=end_date)
+            try:
+                df = quotes.k(symbol=code, begin=start_date, end=end_date)
+            except KeyError as e:
+                # BUG-148: mootdx 内部 data['datetime'] 报 KeyError
+                # 部分股票 TCP 数据缺少 datetime 列，改用底层 client 手动拼接
+                logger.warning(f"[mootdx] {symbol} k() datetime缺失，尝试直接读取: {e}")
+                df = self._fetch_kline_direct(quotes, code, start_date, end_date)
 
             if df is None or df.empty:
                 logger.warning(f"[mootdx] {symbol} K线数据为空")
@@ -832,6 +839,64 @@ class TdxProvider(DataProvider):
         except Exception as e:
             logger.warning(f"[mootdx] 获取 {symbol} K线失败: {e}")
             return pd.DataFrame()
+
+    def _fetch_kline_direct(self, quotes, code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        """绕过 mootdx k() datetime KeyError，通过底层 client 直接获取 K 线
+
+        mootdx StdQuotes.get_k_data() 在某些股票上 data['datetime'] 报 KeyError，
+        此方法直接调用 client.get_security_bars() 获取原始数据并确保 datetime 列存在。
+        """
+        # 与 mootdx 内部一致的日期偏移计算（从当前日期向回推算）
+        first = (pd.to_datetime(end_date) - pd.to_datetime(datetime.now().date())).days
+        first = max(first, 0)
+        last = (pd.to_datetime(start_date) - pd.to_datetime(datetime.now().date())).days
+        last = max(last, 0)
+        # 粗略去除非交易日
+        first -= int(first / 2.8)
+        last -= int(last / 3.5)
+
+        # 市场代码：0=深市, 1=沪市, 2=北交所
+        market = 0
+        if code[0] in ('5', '6', '7', '9'):
+            market = 1
+        elif code[0] in ('4', '8'):
+            market = 2
+
+        client = quotes.client
+        temp = []
+
+        for i in range(math.ceil((last - first) / 800)):
+            try:
+                data = client.get_security_bars(9, market, code, (first + i * 800), 800)
+                if data:
+                    df = client.to_df(data)
+                    if df is not None and not df.empty:
+                        temp.append(df)
+            except Exception as e:
+                logger.warning(f"[mootdx] _fetch_kline_direct {code} 批次 {i} 失败: {e}")
+                continue
+
+        if not temp:
+            logger.warning(f"[mootdx] _fetch_kline_direct: {code} 无数据")
+            return pd.DataFrame()
+
+        data = pd.concat(temp, ignore_index=True)
+
+        # 手动构造 datetime 列（修复 mootdx KeyError）
+        if 'datetime' not in data.columns:
+            data['datetime'] = data.apply(
+                lambda r: f"{int(r['year']):04d}-{int(r['month']):02d}-{int(r['day']):02d} 00:00",
+                axis=1
+            )
+
+        # 后续处理与 mootdx get_k_data 一致
+        data = data.assign(date=data['datetime'].apply(lambda x: str(x)[0:10])).assign(code=str(code))
+        data = data.set_index('date', drop=False, inplace=False)
+        data = data.drop(['year', 'month', 'day', 'hour', 'minute', 'datetime'], axis=1)
+        data = data.loc[(data.date >= start_date) & (data.date < end_date)]
+        data = data.sort_index()
+
+        return data
 
     def _apply_adjust(self, df: pd.DataFrame, symbol: str, adjust: str) -> pd.DataFrame:
         """应用复权因子
