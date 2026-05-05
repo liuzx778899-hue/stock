@@ -1229,7 +1229,17 @@
         }
 
         async function stopTask() {
+            const stopBtn = document.getElementById('btn-stop');
+            const originalText = stopBtn ? stopBtn.textContent : '停止任务';
             try {
+                // 显示停止中状态
+                if (stopBtn) {
+                    stopBtn.textContent = '停止中...';
+                    stopBtn.disabled = true;
+                    stopBtn.style.opacity = '0.7';
+                }
+                addLog('info', '正在停止任务，请稍候...');
+
                 const resp = await fetch('/api/stop', { method: 'POST' });
                 const data = await resp.json();
                 addLog('info', data.message || data.error);
@@ -1239,6 +1249,13 @@
                 }
             } catch (e) {
                 addLog('error', '停止请求失败: ' + e.message);
+            } finally {
+                // 恢复按钮状态
+                if (stopBtn) {
+                    stopBtn.textContent = originalText;
+                    stopBtn.disabled = false;
+                    stopBtn.style.opacity = '1';
+                }
             }
         }
 
