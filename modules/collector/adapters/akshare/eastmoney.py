@@ -7,7 +7,7 @@ import akshare as ak
 import pandas as pd
 from typing import Dict, Optional, List
 
-from adapters.base import DataProvider, DataCategory, ProviderCapability
+from modules.collector.adapters.base import DataProvider, DataCategory, ProviderCapability
 from common.utils import retry
 
 
