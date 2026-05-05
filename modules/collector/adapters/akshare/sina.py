@@ -7,7 +7,8 @@ import akshare as ak
 import pandas as pd
 from typing import Dict, Optional, List
 
-from modules.collector.adapters.base import DataProvider, DataCategory, ProviderCapability
+from adapters.base import DataProvider, DataCategory, ProviderCapability
+from common.utils import retry
 
 
 class SinaProvider(DataProvider):
@@ -60,13 +61,14 @@ class SinaProvider(DataProvider):
         df = ak.stock_zh_a_spot()
         return df
 
+    @retry(max_retries=3, base_delay=5.0, exceptions=(ConnectionError, TimeoutError))
     def fetch_kline(self, symbol: str, start_date: str, end_date: str,
                     adjust: str = "qfq") -> pd.DataFrame:
         """获取日K线数据
 
         优先使用 stock_zh_a_daily，不存在则降级到 stock_zh_a_hist
         """
-        from modules.collector.services.field_merger import FieldMerger
+        from services.field_merger import FieldMerger
 
         try:
             if hasattr(ak, 'stock_zh_a_daily'):
