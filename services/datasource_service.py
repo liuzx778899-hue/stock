@@ -48,6 +48,7 @@ BUILTIN_DEFAULT_PRIORITIES = {
     'eastmoney': 1,
     'sina': 2,
     'tencent': 3,
+    'mootdx': 4,
 }
 
 

@@ -53,7 +53,7 @@ providers:
     class: adapters.mootdx_provider.TdxProvider
     type: tcp
     enabled: true
-    priority: 5
+    priority: 4
     cost_type: free
     description: 通达信数据源（mootdx TCP协议），绕过HTTP代理获取行业/地区
     capabilities:
