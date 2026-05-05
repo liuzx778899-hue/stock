@@ -11,7 +11,8 @@ comm -23 <(git tag --list "round-*-review" | grep -v "fail" | sed 's/-review$//'
 done
 
 cat "$TMPFILE"
-TASKS=$(grep -c "^TODO:" "$TMPFILE" 2>/dev/null || echo 0)
+TASKS=$(grep -c "^TODO:" "$TMPFILE" 2>/dev/null || true)
+TASKS=${TASKS:-0}
 rm -f "$TMPFILE"
 
 if [ "$TASKS" -gt 0 ]; then

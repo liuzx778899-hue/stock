@@ -30,7 +30,8 @@ for tag in $(git tag --list "fix-BUG-*"); do
 done
 
 cat "$TMPFILE"
-TASKS=$(grep -c "^TODO:" "$TMPFILE" 2>/dev/null || echo 0)
+TASKS=$(grep -c "^TODO:" "$TMPFILE" 2>/dev/null || true)
+TASKS=${TASKS:-0}
 rm -f "$TMPFILE"
 
 if [ "$TASKS" -gt 0 ]; then
