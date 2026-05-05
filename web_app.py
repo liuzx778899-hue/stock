@@ -153,12 +153,15 @@ async def lifespan(app: FastAPI):
     global _index_html_cache
     logger.info("Web应用启动...")
     # 预加载首页 HTML 到内存缓存
-    html_path = Path(__file__).parent / "templates" / "index.html"
+    # 优先从 collector 模块加载，兼容旧路径
+    html_path = Path(__file__).parent / "modules" / "collector" / "web" / "templates" / "index.html"
+    if not html_path.exists():
+        html_path = Path(__file__).parent / "modules" / "collector" / "web" / "templates" / "index.html"
     if html_path.exists():
         _index_html_cache = html_path.read_text(encoding="utf-8")
-        logger.info("首页 HTML 已缓存")
+        logger.info(f"首页 HTML 已缓存: {html_path}")
     else:
-        logger.warning(f"首页模板不存在: {html_path}")
+        logger.warning(f"首页模板不存在")
     yield
     logger.info("Web应用关闭")
 
@@ -189,7 +192,7 @@ async def index():
     if _index_html_cache:
         return HTMLResponse(content=_index_html_cache)
     # 缓存未命中，尝试从文件读取
-    html_path = Path(__file__).parent / "templates" / "index.html"
+    html_path = Path(__file__).parent / "modules" / "collector" / "web" / "templates" / "index.html"
     if html_path.exists():
         return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
     return HTMLResponse(content="<h1>Page not found</h1>", status_code=404)
