@@ -43,6 +43,10 @@ def init_providers(reload: bool = False) -> int:
     providers = loader.load_all_providers()
     registry.register_all(providers)
 
+    orchestration_config = loader.get_orchestration_config()
+    if orchestration_config:
+        registry.set_orchestration_config(orchestration_config)
+
     logger.info(f"初始化完成: {registry.provider_count} 个 Provider 已注册")
     return registry.provider_count
 
