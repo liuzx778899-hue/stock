@@ -1,7 +1,7 @@
 """测试字段合并器"""
 import pandas as pd
 import pytest
-from services.field_merger import FieldMerger
+from modules.collector.services.field_merger import FieldMerger
 
 
 class TestFieldMerger:

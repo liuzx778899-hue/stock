@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Any
 
 import pandas as pd
 
-from adapters.base import DataProvider, DataCategory, ProviderCapability
+from modules.collector.adapters.base import DataProvider, DataCategory, ProviderCapability
 from utils import logger
 
 

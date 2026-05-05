@@ -83,7 +83,7 @@ class DataSourceService:
     ]
 
     def __init__(self, registry=None):
-        from adapters.registry import registry as _registry
+        from modules.collector.adapters.registry import registry as _registry
         self.registry = registry or _registry
         self.config_file = Path(__file__).parent.parent / "datasources.json"
         self.custom_sources: List[CustomDataSourceConfig] = []

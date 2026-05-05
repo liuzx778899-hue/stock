@@ -21,7 +21,7 @@ from config import config
 from models import Base, StockBasic
 from utils import logger, TaskStoppedException
 from sqlalchemy import text, inspect
-from services.datasource_service import datasource_service, CustomDataSourceConfig
+from modules.collector.services.datasource_service import datasource_service, CustomDataSourceConfig
 
 # 全局采集器（延迟初始化）
 collector: Optional["StockDataCollector"] = None
@@ -486,7 +486,7 @@ async def get_provider_capabilities():
 @app.get("/api/collect/field-report")
 async def get_field_coverage_report():
     """返回最近一次采集的字段覆盖率报告"""
-    from services.data_orchestrator import orchestrator
+    from modules.collector.services.data_orchestrator import orchestrator
     report = orchestrator.get_field_report()
     return report if report else {"message": "暂无采集数据"}
 
@@ -502,7 +502,7 @@ async def get_quality_report(category: Optional[str] = None, date: Optional[str]
         date: 可选，格式 YYYY-MM-DD，不传则返回最新报告
     """
     from sqlalchemy.orm import Session
-    from services.data_quality import QualityService
+    from modules.collector.services.data_quality import QualityService
     from config import config
 
     from sqlalchemy import create_engine
@@ -535,7 +535,7 @@ async def trigger_quality_check(
     """
     from sqlalchemy.orm import Session
     from sqlalchemy import create_engine
-    from services.data_quality import QualityService
+    from modules.collector.services.data_quality import QualityService
     from config import config
     from datetime import datetime as dt
 
@@ -579,7 +579,7 @@ async def trigger_quality_check(
 async def get_quality_history(category: Optional[str] = None, limit: int = 20):
     """获取历史质量检查记录"""
     from sqlalchemy.orm import Session
-    from services.data_quality import QualityService
+    from modules.collector.services.data_quality import QualityService
     from config import config
 
     from sqlalchemy import create_engine
@@ -607,7 +607,7 @@ async def get_quality_trend(
         category: 可选，指定数据类别
     """
     from sqlalchemy.orm import Session
-    from services.data_quality import QualityService
+    from modules.collector.services.data_quality import QualityService
     from config import config
 
     from sqlalchemy import create_engine
@@ -626,7 +626,7 @@ async def get_quality_trend(
 async def trigger_quality_check_after_collect():
     """采集完成后自动触发质量检查"""
     from sqlalchemy.orm import Session
-    from services.data_quality import QualityService
+    from modules.collector.services.data_quality import QualityService
     from config import config
 
     try:
@@ -722,7 +722,7 @@ async def run_collect_concept():
     from sqlalchemy.orm import Session
     from sqlalchemy import create_engine
     from config import config
-    from services.data_orchestrator import orchestrator
+    from modules.collector.services.data_orchestrator import orchestrator
 
     try:
         await broadcast_status("progress", "开始采集概念板块数据...")
@@ -947,7 +947,7 @@ async def get_stocks(search: Optional[str] = None, limit: int = 100):
 @app.get("/api/stock/{symbol}/kline")
 async def get_stock_kline(symbol: str, period: str = "day", limit: int = 200, end_date: Optional[str] = None):
     """获取个股K线数据（支持日/周/月/年周期切换）"""
-    from services.data_orchestrator import orchestrator
+    from modules.collector.services.data_orchestrator import orchestrator
     result = orchestrator.get_kline(
         symbol=symbol,
         period=period,

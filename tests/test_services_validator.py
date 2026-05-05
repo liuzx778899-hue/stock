@@ -1,7 +1,7 @@
 """测试数据验证器"""
 import pandas as pd
 import pytest
-from services.data_validator import DataValidator, FieldCoverage
+from modules.collector.services.data_validator import DataValidator, FieldCoverage
 
 
 class TestFieldCoverage:
