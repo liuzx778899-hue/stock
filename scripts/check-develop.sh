@@ -4,12 +4,15 @@
 
 GH="/c/Program Files/GitHub CLI/gh.exe"
 TMPFILE=$(mktemp)
+ISSUES_FILE=$(mktemp)
 
 git fetch origin --tags 2>/dev/null
 
 # A. GitHub enhancement Issues 无对应提交的
 if [ -f "$GH" ]; then
-  "$GH" issue list --label enhancement --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null | while read line; do
+  # 先将 Issues 写入临时文件，避免管道子 shell 问题
+  "$GH" issue list --label enhancement --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null > "$ISSUES_FILE"
+  while read line; do
     num=$(echo "$line" | sed 's/^#\([0-9]*\).*/\1/')
     # 检查所有提交是否引用该 Issue
     if git log --all --oneline --grep="#$num" 2>/dev/null | grep -q .; then
@@ -17,7 +20,8 @@ if [ -f "$GH" ]; then
     else
       echo "TODO: $line -> 建 feature 分支开始开发" >> "$TMPFILE"
     fi
-  done
+  done < "$ISSUES_FILE"
+  rm -f "$ISSUES_FILE"
 fi
 
 # B. feature 分支逐条检查
