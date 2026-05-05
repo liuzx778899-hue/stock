@@ -199,6 +199,7 @@
                     <div class="progress-fill" id="progress-bar" style="width: 0%"><span id="progress-label" style="position: absolute; right: 8px; line-height: 8px; font-size: 11px; color: white; font-weight: bold;">0%</span></div>
                 </div>
                 <button class="btn btn-danger" id="btn-stop" onclick="stopTask()" style="display: none; margin-bottom: 12px;">停止任务</button>
+                <div id="collect-stats" style="display: none;"></div>
                 <div class="log-container" id="log-container"></div>
             </div>
 
@@ -1148,6 +1149,10 @@
                 loadCurrentDataSource();
             } else if (data.type === 'completed') {
                 addLog('success', data.message);
+                // 展示详细统计信息
+                if (data.stats) {
+                    showCollectionStats(data.stats, data.message);
+                }
                 taskRunning = false;
                 updateButtons();
                 refreshStatus();
@@ -1200,6 +1205,47 @@
             } catch (e) {
                 console.error('保存日志失败:', e);
             }
+        }
+
+        function showCollectionStats(stats, message) {
+            // 在日志区域上方显示统计卡片
+            const statsContainer = document.getElementById('collect-stats');
+            if (!statsContainer) return;
+
+            let html = '<div class="stats-card" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 15px; border-radius: 8px; margin: 10px 0;">';
+            html += '<div style="font-size: 14px; margin-bottom: 8px;">📊 采集统计</div>';
+
+            // 根据不同采集类型展示不同字段
+            if (stats.total !== undefined && stats.saved !== undefined) {
+                // 股票基础信息采集
+                html += `<div class="stats-row"><span>总计：</span><strong>${stats.total}</strong></div>`;
+                html += `<div class="stats-row"><span>成功：</span><strong style="color: #52c41a;">${stats.saved}</strong></div>`;
+                html += `<div class="stats-row"><span>失败：</span><strong style="color: #ff4d4f;">${stats.failed || (stats.total - stats.saved)}</strong></div>`;
+            } else if (stats.total_stocks !== undefined) {
+                // K线采集
+                html += `<div class="stats-row"><span>股票数：</span><strong>${stats.total_stocks}</strong></div>`;
+                html += `<div class="stats-row"><span>成功：</span><strong style="color: #52c41a;">${stats.success_count}</strong></div>`;
+                html += `<div class="stats-row"><span>失败：</span><strong style="color: #ff4d4f;">${stats.failed_count}</strong></div>`;
+                html += `<div class="stats-row"><span>K线记录：</span><strong>${stats.total_records}</strong></div>`;
+            } else if (stats.total_quotes !== undefined) {
+                // 实时行情采集
+                html += `<div class="stats-row"><span>行情数：</span><strong>${stats.total_quotes}</strong></div>`;
+                html += `<div class="stats-row"><span>成功：</span><strong style="color: #52c41a;">${stats.saved_count}</strong></div>`;
+                html += `<div class="stats-row"><span>失败：</span><strong style="color: #ff4d4f;">${stats.failed_count}</strong></div>`;
+            }
+
+            if (stats.success_rate) {
+                html += `<div class="stats-row" style="margin-top: 8px; border-top: 1px solid rgba(255,255,255,0.3); padding-top: 8px;"><span>成功率：</span><strong>${stats.success_rate}</strong></div>`;
+            }
+            html += '</div>';
+
+            statsContainer.innerHTML = html;
+            statsContainer.style.display = 'block';
+
+            // 5秒后自动隐藏
+            setTimeout(() => {
+                statsContainer.style.display = 'none';
+            }, 10000);
         }
 
         function loadLogs() {

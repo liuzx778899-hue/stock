@@ -1375,10 +1375,18 @@ async def run_collect_basic():
         # 正确处理返回结果（修复 REG-003）
         # collect_stock_basic 返回字典 {"success": True, "total": N, "saved": N}
         saved_count = result.get("saved", 0) if isinstance(result, dict) else result
-        task_status["stats"] = _convert_numpy_types(result if isinstance(result, dict) else {"count": saved_count})
+        total_count = result.get("total", saved_count) if isinstance(result, dict) else saved_count
+        failed_count = total_count - saved_count
+        stats = {
+            "total": total_count,
+            "saved": saved_count,
+            "failed": failed_count,
+            "success_rate": f"{saved_count * 100 / total_count:.1f}%" if total_count > 0 else "100%"
+        }
+        task_status["stats"] = _convert_numpy_types(stats)
         task_status["progress"] = saved_count
         task_status["total"] = saved_count
-        await broadcast_status("completed", f"采集完成，共 {saved_count} 条记录")
+        await broadcast_status("completed", f"采集完成：成功 {saved_count} 条，失败 {failed_count} 条", stats)
 
     except TaskStoppedException:
         await broadcast_status("stopped", "任务已停止")
@@ -1422,10 +1430,24 @@ async def run_collect_kline(start_date: str, end_date: str, threads: int):
             await broadcast_status("error", "任务已停止")
             return
 
-        task_status["stats"] = _convert_numpy_types(stats)
+        # 构建详细统计信息
+        success_count = stats.get("success_count", 0)
+        failed_count = stats.get("failed_count", 0)
+        total_count = stats.get("total", success_count + failed_count)
+        total_records = stats.get("total_records", 0)
+        collect_stats = {
+            "total_stocks": total_count,
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "total_records": total_records,
+            "success_rate": f"{success_count * 100 / total_count:.1f}%" if total_count > 0 else "100%"
+        }
+        task_status["stats"] = _convert_numpy_types(collect_stats)
         task_status["progress"] = stats.get("total", 0)
         task_status["total"] = stats.get("total", 0)
-        await broadcast_status("completed", f"采集完成，共 {stats.get('total_records', 0)} 条记录")
+        await broadcast_status("completed",
+            f"K线采集完成：成功 {success_count} 只，失败 {failed_count} 只，共 {total_records} 条记录",
+            collect_stats)
 
     except Exception as e:
         task_status["error"] = str(e)
@@ -1463,7 +1485,21 @@ async def run_collect_incremental(days: int):
         task_status["stats"] = _convert_numpy_types(stats)
         task_status["progress"] = stats.get("total", 0)
         task_status["total"] = stats.get("total", 0)
-        await broadcast_status("completed", f"增量采集完成，共 {stats.get('total_records', 0)} 条记录")
+        # 构建详细统计信息
+        success_count = stats.get("success_count", 0)
+        failed_count = stats.get("failed_count", 0)
+        total_count = stats.get("total", success_count + failed_count)
+        total_records = stats.get("total_records", 0)
+        collect_stats = {
+            "total_stocks": total_count,
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "total_records": total_records,
+            "success_rate": f"{success_count * 100 / total_count:.1f}%" if total_count > 0 else "100%"
+        }
+        await broadcast_status("completed",
+            f"增量采集完成：成功 {success_count} 只，失败 {failed_count} 只，共 {total_records} 条记录",
+            collect_stats)
 
     except Exception as e:
         task_status["error"] = str(e)
@@ -1499,10 +1535,22 @@ async def run_collect_realtime():
             await broadcast_status("stopped", "任务已停止")
             return
 
-        task_status["stats"] = _convert_numpy_types(stats)
+        # 构建详细统计信息
+        total_count = stats.get("total", 0)
+        saved_count = stats.get("saved", total_count)
+        failed_count = total_count - saved_count
+        collect_stats = {
+            "total_quotes": total_count,
+            "saved_count": saved_count,
+            "failed_count": failed_count,
+            "success_rate": f"{saved_count * 100 / total_count:.1f}%" if total_count > 0 else "100%"
+        }
+        task_status["stats"] = _convert_numpy_types(collect_stats)
         task_status["progress"] = stats.get("total", 0)
         task_status["total"] = stats.get("total", 0)
-        await broadcast_status("completed", f"实时行情采集完成，共 {stats.get('total', 0)} 条记录")
+        await broadcast_status("completed",
+            f"实时行情采集完成：成功 {saved_count} 条，失败 {failed_count} 条",
+            collect_stats)
 
     except Exception as e:
         task_status["error"] = str(e)
@@ -1517,13 +1565,16 @@ async def run_collect_realtime():
 
 # ==================== 辅助函数 ====================
 
-async def broadcast_status(status_type: str, message: str):
+async def broadcast_status(status_type: str, message: str, stats: dict = None):
     """广播状态更新"""
-    await manager.broadcast({
+    payload = {
         "type": status_type,
         "message": message,
         "timestamp": datetime.now().isoformat()
-    })
+    }
+    if stats:
+        payload["stats"] = stats
+    await manager.broadcast(payload)
 
 
 if __name__ == "__main__":
