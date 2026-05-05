@@ -108,9 +108,23 @@
         .stock-code-link:hover { text-decoration: underline; }
         .stock-name-link { color: #333; cursor: pointer; font-weight: 500; }
         .stock-name-link:hover { color: #667eea; }
+
+        /* 概念板块 tooltip */
+        .concept-tooltip { position: fixed; background: white; border: 1px solid #e0e0e0; border-radius: 8px; padding: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 1000; max-width: 300px; display: none; }
+        .concept-tooltip.active { display: block; }
+        .concept-tooltip-title { font-size: 12px; color: #888; margin-bottom: 8px; }
+        .concept-tooltip-list { display: flex; flex-wrap: wrap; gap: 4px; }
+        .concept-tooltip-item { background: #e6f7ff; color: #1890ff; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
+        .concept-tag { cursor: pointer; transition: opacity 0.2s; }
+        .concept-tag:hover { opacity: 0.8; }
     </style>
 </head>
 <body>
+    <!-- 概念板块 Tooltip -->
+    <div id="concept-tooltip" class="concept-tooltip">
+        <div class="concept-tooltip-title">全部概念板块</div>
+        <div class="concept-tooltip-list" id="concept-tooltip-list"></div>
+    </div>
     <!-- 侧边栏 -->
     <div class="sidebar">
         <div class="sidebar-header">
@@ -1285,16 +1299,17 @@
             const tbody = document.getElementById('stocks-table');
             if (stocks.length > 0) {
                 tbody.innerHTML = stocks.map(s => {
-                    // 渲染概念标签（最多4个，超出显示 +N）
+                    // 渲染概念标签（最多4个，超出显示 +N），hover 显示全部
                     let conceptTags = '';
                     if (s.concepts && s.concepts.length > 0) {
+                        const allConceptsJson = JSON.stringify(s.concepts).replace(/"/g, '&quot;');
                         const displayConcepts = s.concepts.slice(0, 4);
                         const moreCount = s.concepts.length - 4;
                         conceptTags = displayConcepts.map(c =>
-                            `<span style="display: inline-block; background: #e6f7ff; color: #1890ff; padding: 1px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; margin-bottom: 2px;">${c}</span>`
+                            `<span class="concept-tag" data-concepts="${allConceptsJson}" onmouseenter="showConceptTooltip(event)" onmouseleave="hideConceptTooltip()" style="display: inline-block; background: #e6f7ff; color: #1890ff; padding: 1px 6px; border-radius: 4px; font-size: 11px; margin-right: 4px; margin-bottom: 2px;">${c}</span>`
                         ).join('');
                         if (moreCount > 0) {
-                            conceptTags += `<span style="display: inline-block; background: #f5f5f5; color: #888; padding: 1px 6px; border-radius: 4px; font-size: 11px;">+${moreCount}</span>`;
+                            conceptTags += `<span class="concept-tag" data-concepts="${allConceptsJson}" onmouseenter="showConceptTooltip(event)" onmouseleave="hideConceptTooltip()" style="display: inline-block; background: #f5f5f5; color: #888; padding: 1px 6px; border-radius: 4px; font-size: 11px;">+${moreCount}</span>`;
                         }
                     } else {
                         conceptTags = '<span style="color: #ccc; font-size: 11px;">-</span>';
@@ -1304,6 +1319,26 @@
             } else {
                 tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #888;">暂无数据，请先采集股票基础信息</td></tr>';
             }
+        }
+
+        function showConceptTooltip(event) {
+            const el = event.target;
+            const conceptsJson = el.getAttribute('data-concepts');
+            if (!conceptsJson) return;
+            const concepts = JSON.parse(conceptsJson.replace(/&quot;/g, '"'));
+            const tooltip = document.getElementById('concept-tooltip');
+            const list = document.getElementById('concept-tooltip-list');
+            list.innerHTML = concepts.map(c => `<span class="concept-tooltip-item">${c}</span>`).join('');
+            tooltip.classList.add('active');
+            // 定位到鼠标右下方
+            const x = event.clientX + 10;
+            const y = event.clientY + 10;
+            tooltip.style.left = x + 'px';
+            tooltip.style.top = y + 'px';
+        }
+
+        function hideConceptTooltip() {
+            document.getElementById('concept-tooltip').classList.remove('active');
         }
 
         async function loadStats() {
