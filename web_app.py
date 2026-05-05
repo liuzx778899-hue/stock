@@ -188,7 +188,7 @@ app.add_middleware(
 )
 
 # 挂载静态文件目录（第七十三轮：本地K线图库）
-app.mount("/static", StaticFiles(directory="static"), name="static")
+app.mount("/static", StaticFiles(directory="modules/collector/web/static"), name="static")
 
 
 
