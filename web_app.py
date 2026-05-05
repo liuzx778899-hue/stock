@@ -847,7 +847,7 @@ async def cleanup_logs(request: LogCleanupRequest):
     """清理旧日志"""
     log_dir = Path("logs")
     if not log_dir.exists():
-        return {"deleted_count": 0, "deleted_files": []}
+        return {"success": True, "message": "无日志需要清理", "deleted_count": 0, "deleted_files": []}
     from datetime import timedelta
     cutoff = datetime.now() - timedelta(days=request.days)
     deleted = []
@@ -858,7 +858,8 @@ async def cleanup_logs(request: LogCleanupRequest):
                 deleted.append(f.name)
             except Exception:
                 pass
-    return {"deleted_count": len(deleted), "deleted_files": deleted, "cutoff_date": cutoff.isoformat()}
+    count = len(deleted)
+    return {"success": True, "message": f"已清理 {count} 个日志文件", "deleted_count": count, "deleted_files": deleted, "cutoff_date": cutoff.isoformat()}
 
 
 @app.get("/api/stats")
