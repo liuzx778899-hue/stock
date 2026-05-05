@@ -7,9 +7,14 @@ TMPFILE=$(mktemp)
 
 git fetch origin --tags 2>/dev/null
 
-# A. itest 有但 deploy 无
-comm -23 <(git tag --list "round-*-itest" | grep -v "fail" | sed 's/^round-//;s/-itest$//' | sort) <(git tag --list "deploy-*" | sed 's/^deploy-//' | sort) | while read id; do
-  [ -n "$id" ] && echo "$id (待部署)" >> "$TMPFILE"
+# A. ui tag 有但 deploy 无 → 待部署（必须先过 UI 验证）
+comm -23 <(git tag --list "round-*-ui" | sed 's/^round-//;s/-ui$//' | sort) <(git tag --list "deploy-*" | sed 's/^deploy-//' | sort) | while read id; do
+  [ -n "$id" ] && echo "$id (UI验证通过, 待部署)" >> "$TMPFILE"
+done
+
+# A2. itest 有但 ui 无 → 提示等待 puppeteer
+comm -23 <(git tag --list "round-*-itest" | grep -v "fail" | sed 's/^round-//;s/-itest$//' | sort) <(git tag --list "round-*-ui" | sed 's/^round-//;s/-ui$//' | sort) | while read id; do
+  [ -n "$id" ] && echo "[BLOCKED] $id (itest通过但缺UI验证, 等待puppeteer)" >> "$TMPFILE"
 done
 
 # B. master 有代码但 Issue 未关
@@ -22,7 +27,7 @@ if [ -f "$GH" ]; then
   done
 fi
 
-TASKS=$(wc -l < "$TMPFILE" 2>/dev/null || echo 0)
+TASKS=$(grep -c "^round-\|^BUG" "$TMPFILE" 2>/dev/null || true)
 TASKS=${TASKS:-0}
 
 if [ "$TASKS" -gt 0 ]; then
