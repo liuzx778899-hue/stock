@@ -66,6 +66,17 @@ providers:
       concept:
         quality_score: 0.8
 
+  baostock:
+    class: modules.collector.adapters.baostock_provider.BaostockProvider
+    type: baostock
+    enabled: true
+    priority: 5
+    cost_type: free
+    description: 证券宝数据源，免费无需注册，支持A股日K线
+    capabilities:
+      kline_daily:
+        quality_score: 0.9
+
 # 编排策略配置
 orchestration:
   stock_basic:
@@ -79,9 +90,10 @@ orchestration:
         required_coverage: 0.7
 
   kline_daily:
-    # K线数据源优先级覆盖（mootdx TCP 绕过HTTP限流，设为首选）
+    # K线数据源优先级覆盖
     provider_order:
       - mootdx
+      - baostock
       - eastmoney
       - sina
       - tencent
