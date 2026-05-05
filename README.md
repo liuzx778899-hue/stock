@@ -35,6 +35,8 @@ python web_app.py        # 启动服务 → http://localhost:8000
 
 ```
 stock/
+├── .claude/agents/         ← Agent 角色文件（pm/develop1/bugfixer/...）
+│
 ├── modules/
 │   └── collector/          ← 数据采集模块（当前唯一模块）
 │       ├── adapters/       ←   数据源适配器（AkShare/mootdx）
@@ -44,19 +46,29 @@ stock/
 │       ├── providers.yaml  ←   数据源配置
 │       └── datasources.json←   自定义数据源
 │
-├── common/                 ← 跨模块共享（ORM 模型/配置/DB）
+├── common/                 ← 跨模块共享层
+│   ├── models.py           ←   ORM 模型
+│   ├── config.py           ←   全局配置
+│   ├── utils.py            ←   工具函数
+│   └── ddl.sql             ←   数据库建表脚本
+│
 ├── requirements/           ← 项目设计文档
-│   ├── 模块设计规范.md
-│   ├── 开发规范.md
-│   └── collector/          ← collector 模块需求
-├── scripts/                ← Agent 任务发现脚本
+│   ├── 模块设计规范.md     ←   架构设计 + 模块注册表
+│   ├── 开发规范.md         ←   编码规范
+│   └── collector/          ←   collector 模块需求文档
+│
+├── scripts/                ← Agent 任务发现脚本（check-*.sh）
+├── docs/                   ← 流程文档 + 工作报告
 ├── tests/                  ← 单元测试
 │
 ├── web_app.py              ← FastAPI 主入口
 ├── main.py                 ← CLI 入口
-├── config.py               ← 全局配置
-├── utils.py                ← 工具函数
-└── models.py               ← ORM 代理 → common/models.py
+├── config.py               ← 代理 → common/config.py
+├── utils.py                ← 代理 → common/utils.py
+├── models.py               ← 代理 → common/models.py
+├── requirements.txt        ← Python 依赖
+├── start.bat / start.ps1   ← 启动脚本
+└── README.md               ← 本文件
 ```
 
 ## 模块规划
