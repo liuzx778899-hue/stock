@@ -354,7 +354,7 @@ async def list_datasources():
 @app.get("/api/datasource/options")
 async def get_datasource_options():
     """获取数据源下拉选项（修复 BUG-081，排除禁用的 Provider）"""
-    from adapters import registry
+    from modules.collector.adapters import registry
     all_sources = datasource_service.list_all()
     # 过滤禁用的 Provider
     enabled_sources = [s for s in all_sources if s.get('enabled', True)]
@@ -402,7 +402,7 @@ async def test_datasource(source: CustomDataSourceConfig):
 @app.get("/api/datasource/current")
 async def get_current_datasource():
     """获取当前使用的数据源（修复 BUG-081：返回格式匹配前端期望）"""
-    from adapters import registry
+    from modules.collector.adapters import registry
     forced = datasource_service.get_forced_source()
     # 返回前端期望的格式
     return {
@@ -464,7 +464,7 @@ class ToggleRequest(BaseModel):
 @app.post("/api/datasource/toggle/{name}")
 async def toggle_datasource(name: str, request: ToggleRequest):
     """启用/禁用数据源"""
-    from adapters import registry
+    from modules.collector.adapters import registry
     success = registry.set_enabled(name, request.enabled)
     if success:
         status = "启用" if request.enabled else "禁用"
@@ -477,7 +477,7 @@ async def toggle_datasource(name: str, request: ToggleRequest):
 @app.get("/api/datasource/providers")
 async def get_provider_capabilities():
     """返回所有 Provider 能力声明列表"""
-    from adapters import registry
+    from modules.collector.adapters import registry
     return registry.get_capabilities_report()
 
 
