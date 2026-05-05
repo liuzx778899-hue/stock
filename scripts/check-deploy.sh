@@ -7,9 +7,19 @@ TMPFILE=$(mktemp)
 
 git fetch origin --tags 2>/dev/null
 
-# A. ui tag 有但 deploy 无 → 待部署（必须先过 UI 验证）
+# A. ui tag 有但 deploy 无 → 待部署，同时找对应分支
 comm -23 <(git tag --list "round-*-ui" | sed 's/^round-//;s/-ui$//' | sort) <(git tag --list "deploy-*" | sed 's/^deploy-//' | sort) | while read id; do
-  [ -n "$id" ] && echo "$id (UI验证通过, 待部署)" >> "$TMPFILE"
+  [ -z "$id" ] && continue
+  # 找对应分支名
+  if echo "$id" | grep -q "^BUG"; then
+    bug_num=$(echo "$id" | sed 's/^BUG//')
+    branch="fix/BUG-${bug_num}"
+  else
+    round_num=$(echo "$id" | grep -oE '^[0-9]+')
+    branch=$(git branch -r | grep "origin/feature/${round_num}-" | sed 's/.*origin\///' | head -1)
+    [ -z "$branch" ] && branch="feature/${round_num}-t1"
+  fi
+  echo "$id BRANCH=$branch" >> "$TMPFILE"
 done
 
 # A2. itest 有但 ui 无 → 提示等待 puppeteer
