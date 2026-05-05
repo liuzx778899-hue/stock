@@ -35,8 +35,6 @@ python web_app.py        # 启动服务 → http://localhost:8000
 
 ```
 stock/
-├── .claude/agents/         ← Agent 角色文件（pm/develop1/bugfixer/...）
-│
 ├── modules/
 │   └── collector/          ← 数据采集模块（当前唯一模块）
 │       ├── adapters/       ←   数据源适配器（AkShare/mootdx）
