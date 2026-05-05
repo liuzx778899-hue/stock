@@ -41,6 +41,7 @@ class DatabaseConfig:
             if _pw:
                 self.password = _pw
             else:
+                import logging
                 # 检查 .env 是否加载成功但密码为空
                 env_file = BASE_DIR / ".env"
                 if env_file.exists():
@@ -49,10 +50,10 @@ class DatabaseConfig:
                             if line.strip().startswith("DB_PASSWORD="):
                                 val = line.strip().split("=", 1)[1]
                                 if not val:
-                                    logger.warning(".env 中 DB_PASSWORD 为空，请在 .env 中设置数据库密码")
+                                    logging.warning(".env 中 DB_PASSWORD 为空，请在 .env 中设置数据库密码")
                                 break
                 else:
-                    logger.warning(f".env 文件不存在 ({env_file})，请创建并设置 DB_PASSWORD")
+                    logging.warning(f".env 文件不存在 ({env_file})，请创建并设置 DB_PASSWORD")
                 self.password = ""
 
     @property
