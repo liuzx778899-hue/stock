@@ -2309,15 +2309,27 @@
             }
 
             const sortedData = [...data].reverse();
-            const klineData = sortedData.map(d => ({
-                timestamp: new Date(d.trade_date + 'T15:00:00').getTime(),
-                open: parseFloat(d.open),
-                high: parseFloat(d.high),
-                low: parseFloat(d.low),
-                close: parseFloat(d.close),
-                volume: Math.round(d.volume / 100),
-                turnover: parseFloat(d.amount || 0)
-            }));
+            const klineData = sortedData.map(d => {
+                // 安全解析日期：YYYY-MM-DD → 时间戳（避免 new Date(string) 跨浏览器不一致）
+                const parts = (d.trade_date || '').split('-');
+                const ts = parts.length === 3
+                    ? new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 15, 0, 0).getTime()
+                    : 0;
+                return {
+                    timestamp: ts,
+                    open: parseFloat(d.open) || 0,
+                    high: parseFloat(d.high) || 0,
+                    low: parseFloat(d.low) || 0,
+                    close: parseFloat(d.close) || 0,
+                    volume: Math.round((d.volume || 0) / 100),
+                    turnover: parseFloat(d.amount || 0)
+                };
+            }).filter(d => d.timestamp > 0);
+
+            if (klineData.length === 0) {
+                document.getElementById('kline-modal-chart').innerHTML = '<div style="text-align:center;padding:150px 0;color:#888;">可渲染的K线数据为空</div>';
+                return;
+            }
 
             modalChartInstance = klinecharts.init('kline-modal-chart', {
                 styles: {
@@ -2400,15 +2412,26 @@
             const sortedData = [...data].reverse();
 
             // 转换为 KLineChart 数据格式
-            const klineData = sortedData.map(d => ({
-                timestamp: new Date(d.trade_date + 'T15:00:00').getTime(),
-                open: parseFloat(d.open),
-                high: parseFloat(d.high),
-                low: parseFloat(d.low),
-                close: parseFloat(d.close),
-                volume: Math.round(d.volume / 100),  // 股 → 手
-                turnover: parseFloat(d.amount || 0)
-            }));
+            const klineData = sortedData.map(d => {
+                const parts = (d.trade_date || '').split('-');
+                const ts = parts.length === 3
+                    ? new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]), 15, 0, 0).getTime()
+                    : 0;
+                return {
+                    timestamp: ts,
+                    open: parseFloat(d.open) || 0,
+                    high: parseFloat(d.high) || 0,
+                    low: parseFloat(d.low) || 0,
+                    close: parseFloat(d.close) || 0,
+                    volume: Math.round((d.volume || 0) / 100),
+                    turnover: parseFloat(d.amount || 0)
+                };
+            }).filter(d => d.timestamp > 0);
+
+            if (klineData.length === 0) {
+                document.getElementById('kline-chart').innerHTML = '<div style="text-align:center;padding:100px 0;color:#888;">可渲染的K线数据为空</div>';
+                return;
+            }
 
             // 创建 KLineChart 实例（深色主题）
             klineChartInstance = klinecharts.init('kline-chart', {
