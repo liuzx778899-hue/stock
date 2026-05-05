@@ -3,9 +3,13 @@
 
 管理所有数据源适配器的注册、查询、优先级排序。
 支持运行时动态添加/移除 Provider。
+支持按能力配置 Provider 优先级覆盖。
 """
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, TYPE_CHECKING
 from .base import DataProvider, DataCategory
+
+if TYPE_CHECKING:
+    from .loader import OrchestrationConfig
 
 
 class DataSourceRegistry:
@@ -14,13 +18,14 @@ class DataSourceRegistry:
     职责:
     - 注册/注销数据源适配器
     - 按数据类别查询可用数据源（自动过滤 disabled）
-    - 按优先级排序
+    - 按优先级排序（支持按能力覆盖）
     - 生成能力报告
     """
 
     def __init__(self):
         self._providers: List[DataProvider] = []
         self._priority_overrides: Dict[str, int] = {}
+        self._orchestration_config: Optional["OrchestrationConfig"] = None
 
     def register(self, provider: DataProvider) -> None:
         """注册数据源适配器（同名则替换）"""
@@ -63,16 +68,25 @@ class DataSourceRegistry:
                 return True
         return False
 
+    def set_orchestration_config(self, config: "OrchestrationConfig") -> None:
+        """设置编排策略配置（由 init_providers 调用）"""
+        self._orchestration_config = config
+
     def get_providers_for(self, category: DataCategory) -> List[DataProvider]:
         """获取能提供指定数据类别的 Provider 列表
 
         - 自动过滤 disabled 的 Provider
-        - 按优先级排序
+        - 按优先级排序（支持按能力覆盖）
         """
         providers = [
             p for p in self._providers
             if p.enabled and p.supports(category)
         ]
+        cat_name = category.value if hasattr(category, 'value') else str(category)
+        if self._orchestration_config and cat_name in self._orchestration_config.provider_order:
+            order = self._orchestration_config.provider_order[cat_name]
+            order_map = {name: i for i, name in enumerate(order)}
+            providers.sort(key=lambda p: order_map.get(p.provider_name, 99))
         return providers
 
     def get_all_providers(self, include_disabled: bool = False) -> List[DataProvider]:

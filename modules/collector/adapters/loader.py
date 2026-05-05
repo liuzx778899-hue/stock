@@ -41,6 +41,7 @@ class OrchestrationConfig:
         self.field_completion: Dict[str, Dict] = {}
         self.required_fields: Dict[str, List[str]] = {}
         self.expected_fields: Dict[str, List[str]] = {}
+        self.provider_order: Dict[str, List[str]] = {}
 
         for category, cat_config in config.items():
             if "field_completion" in cat_config:
@@ -49,6 +50,8 @@ class OrchestrationConfig:
                 self.required_fields[category] = cat_config["required_fields"]
             if "expected_fields" in cat_config:
                 self.expected_fields[category] = cat_config["expected_fields"]
+            if "provider_order" in cat_config:
+                self.provider_order[category] = cat_config["provider_order"]
 
 
 class ProviderLoader:

@@ -79,6 +79,12 @@ orchestration:
         required_coverage: 0.7
 
   kline_daily:
+    # K线数据源优先级覆盖（mootdx TCP 绕过HTTP限流，设为首选）
+    provider_order:
+      - mootdx
+      - eastmoney
+      - sina
+      - tencent
     # K线关键字段：必须全部有值才认为成功
     required_fields:
       - trade_date
