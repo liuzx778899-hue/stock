@@ -8,7 +8,8 @@ import pandas as pd
 import os
 from typing import Dict, Optional, List
 
-from adapters.base import DataProvider, DataCategory, ProviderCapability
+from modules.collector.adapters.base import DataProvider, DataCategory, ProviderCapability
+from common.utils import retry
 from utils import logger
 
 
@@ -54,6 +55,7 @@ class TencentProvider(DataProvider):
         df = ak.stock_zh_a_spot()
         return df
 
+    @retry(max_retries=3, base_delay=5.0, exceptions=(ConnectionError, TimeoutError))
     def fetch_kline(self, symbol: str, start_date: str, end_date: str,
                     adjust: str = "qfq") -> pd.DataFrame:
         """获取日K线数据
@@ -61,7 +63,7 @@ class TencentProvider(DataProvider):
         BUG-103: stock_zh_a_hist_tx 每次只返回 4 条记录，优先使用 stock_zh_a_hist（全量数据）
         注意: 调用前清除代理环境变量，防止企业网络/系统代理拦截请求
         """
-        from services.field_merger import FieldMerger
+        from modules.collector.services.field_merger import FieldMerger
 
         # 清除代理环境变量（防止系统代理阻塞 K 线 HTTP 请求）
         for var in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']:

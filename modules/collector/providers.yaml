@@ -55,12 +55,16 @@ providers:
     enabled: true
     priority: 4
     cost_type: free
-    description: 通达信数据源（mootdx TCP协议），绕过HTTP代理获取行业/地区
+    description: 通达信数据源（mootdx TCP协议），绕过HTTP代理获取行业/地区/K线
     capabilities:
       stock_industry:
         quality_score: 0.8
       stock_area:
         quality_score: 0.7
+      kline_daily:
+        quality_score: 0.85
+      concept:
+        quality_score: 0.8
 
 # 编排策略配置
 orchestration:

@@ -21,7 +21,7 @@ from config import config
 from models import Base, StockBasic
 from utils import logger, TaskStoppedException
 from sqlalchemy import text, inspect
-from services.datasource_service import datasource_service, CustomDataSourceConfig
+from modules.collector.services.datasource_service import datasource_service, CustomDataSourceConfig
 
 # 全局采集器（延迟初始化）
 collector: Optional["StockDataCollector"] = None
@@ -486,7 +486,7 @@ async def get_provider_capabilities():
 @app.get("/api/collect/field-report")
 async def get_field_coverage_report():
     """返回最近一次采集的字段覆盖率报告"""
-    from services.data_orchestrator import orchestrator
+    from modules.collector.services.data_orchestrator import orchestrator
     report = orchestrator.get_field_report()
     return report if report else {"message": "暂无采集数据"}
 
@@ -502,7 +502,7 @@ async def get_quality_report(category: Optional[str] = None, date: Optional[str]
         date: 可选，格式 YYYY-MM-DD，不传则返回最新报告
     """
     from sqlalchemy.orm import Session
-    from services.data_quality import QualityService
+    from modules.collector.services.data_quality import QualityService
     from config import config
 
     from sqlalchemy import create_engine
@@ -535,7 +535,7 @@ async def trigger_quality_check(
     """
     from sqlalchemy.orm import Session
     from sqlalchemy import create_engine
-    from services.data_quality import QualityService
+    from modules.collector.services.data_quality import QualityService
     from config import config
     from datetime import datetime as dt
 
@@ -579,7 +579,7 @@ async def trigger_quality_check(
 async def get_quality_history(category: Optional[str] = None, limit: int = 20):
     """获取历史质量检查记录"""
     from sqlalchemy.orm import Session
-    from services.data_quality import QualityService
+    from modules.collector.services.data_quality import QualityService
     from config import config
 
     from sqlalchemy import create_engine
@@ -607,7 +607,7 @@ async def get_quality_trend(
         category: 可选，指定数据类别
     """
     from sqlalchemy.orm import Session
-    from services.data_quality import QualityService
+    from modules.collector.services.data_quality import QualityService
     from config import config
 
     from sqlalchemy import create_engine
@@ -626,7 +626,7 @@ async def get_quality_trend(
 async def trigger_quality_check_after_collect():
     """采集完成后自动触发质量检查"""
     from sqlalchemy.orm import Session
-    from services.data_quality import QualityService
+    from modules.collector.services.data_quality import QualityService
     from config import config
 
     try:
@@ -722,7 +722,7 @@ async def run_collect_concept():
     from sqlalchemy.orm import Session
     from sqlalchemy import create_engine
     from config import config
-    from services.data_orchestrator import orchestrator
+    from modules.collector.services.data_orchestrator import orchestrator
 
     try:
         await broadcast_status("progress", "开始采集概念板块数据...")
@@ -947,7 +947,7 @@ async def get_stocks(search: Optional[str] = None, limit: int = 100):
 @app.get("/api/stock/{symbol}/kline")
 async def get_stock_kline(symbol: str, period: str = "day", limit: int = 200, end_date: Optional[str] = None):
     """获取个股K线数据（支持日/周/月/年周期切换）"""
-    from services.data_orchestrator import orchestrator
+    from modules.collector.services.data_orchestrator import orchestrator
     result = orchestrator.get_kline(
         symbol=symbol,
         period=period,
@@ -1375,10 +1375,18 @@ async def run_collect_basic():
         # 正确处理返回结果（修复 REG-003）
         # collect_stock_basic 返回字典 {"success": True, "total": N, "saved": N}
         saved_count = result.get("saved", 0) if isinstance(result, dict) else result
-        task_status["stats"] = _convert_numpy_types(result if isinstance(result, dict) else {"count": saved_count})
+        total_count = result.get("total", saved_count) if isinstance(result, dict) else saved_count
+        failed_count = total_count - saved_count
+        stats = {
+            "total": total_count,
+            "saved": saved_count,
+            "failed": failed_count,
+            "success_rate": f"{saved_count * 100 / total_count:.1f}%" if total_count > 0 else "100%"
+        }
+        task_status["stats"] = _convert_numpy_types(stats)
         task_status["progress"] = saved_count
         task_status["total"] = saved_count
-        await broadcast_status("completed", f"采集完成，共 {saved_count} 条记录")
+        await broadcast_status("completed", f"采集完成：成功 {saved_count} 条，失败 {failed_count} 条", stats)
 
     except TaskStoppedException:
         await broadcast_status("stopped", "任务已停止")
@@ -1422,10 +1430,24 @@ async def run_collect_kline(start_date: str, end_date: str, threads: int):
             await broadcast_status("error", "任务已停止")
             return
 
-        task_status["stats"] = _convert_numpy_types(stats)
+        # 构建详细统计信息
+        success_count = stats.get("success_count", 0)
+        failed_count = stats.get("failed_count", 0)
+        total_count = stats.get("total", success_count + failed_count)
+        total_records = stats.get("total_records", 0)
+        collect_stats = {
+            "total_stocks": total_count,
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "total_records": total_records,
+            "success_rate": f"{success_count * 100 / total_count:.1f}%" if total_count > 0 else "100%"
+        }
+        task_status["stats"] = _convert_numpy_types(collect_stats)
         task_status["progress"] = stats.get("total", 0)
         task_status["total"] = stats.get("total", 0)
-        await broadcast_status("completed", f"采集完成，共 {stats.get('total_records', 0)} 条记录")
+        await broadcast_status("completed",
+            f"K线采集完成：成功 {success_count} 只，失败 {failed_count} 只，共 {total_records} 条记录",
+            collect_stats)
 
     except Exception as e:
         task_status["error"] = str(e)
@@ -1463,7 +1485,21 @@ async def run_collect_incremental(days: int):
         task_status["stats"] = _convert_numpy_types(stats)
         task_status["progress"] = stats.get("total", 0)
         task_status["total"] = stats.get("total", 0)
-        await broadcast_status("completed", f"增量采集完成，共 {stats.get('total_records', 0)} 条记录")
+        # 构建详细统计信息
+        success_count = stats.get("success_count", 0)
+        failed_count = stats.get("failed_count", 0)
+        total_count = stats.get("total", success_count + failed_count)
+        total_records = stats.get("total_records", 0)
+        collect_stats = {
+            "total_stocks": total_count,
+            "success_count": success_count,
+            "failed_count": failed_count,
+            "total_records": total_records,
+            "success_rate": f"{success_count * 100 / total_count:.1f}%" if total_count > 0 else "100%"
+        }
+        await broadcast_status("completed",
+            f"增量采集完成：成功 {success_count} 只，失败 {failed_count} 只，共 {total_records} 条记录",
+            collect_stats)
 
     except Exception as e:
         task_status["error"] = str(e)
@@ -1499,10 +1535,22 @@ async def run_collect_realtime():
             await broadcast_status("stopped", "任务已停止")
             return
 
-        task_status["stats"] = _convert_numpy_types(stats)
+        # 构建详细统计信息
+        total_count = stats.get("total", 0)
+        saved_count = stats.get("saved", total_count)
+        failed_count = total_count - saved_count
+        collect_stats = {
+            "total_quotes": total_count,
+            "saved_count": saved_count,
+            "failed_count": failed_count,
+            "success_rate": f"{saved_count * 100 / total_count:.1f}%" if total_count > 0 else "100%"
+        }
+        task_status["stats"] = _convert_numpy_types(collect_stats)
         task_status["progress"] = stats.get("total", 0)
         task_status["total"] = stats.get("total", 0)
-        await broadcast_status("completed", f"实时行情采集完成，共 {stats.get('total', 0)} 条记录")
+        await broadcast_status("completed",
+            f"实时行情采集完成：成功 {saved_count} 条，失败 {failed_count} 条",
+            collect_stats)
 
     except Exception as e:
         task_status["error"] = str(e)
@@ -1517,13 +1565,16 @@ async def run_collect_realtime():
 
 # ==================== 辅助函数 ====================
 
-async def broadcast_status(status_type: str, message: str):
+async def broadcast_status(status_type: str, message: str, stats: dict = None):
     """广播状态更新"""
-    await manager.broadcast({
+    payload = {
         "type": status_type,
         "message": message,
         "timestamp": datetime.now().isoformat()
-    })
+    }
+    if stats:
+        payload["stats"] = stats
+    await manager.broadcast(payload)
 
 
 if __name__ == "__main__":

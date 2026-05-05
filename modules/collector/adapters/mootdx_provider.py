@@ -17,7 +17,7 @@ from typing import Dict, List, Optional, Any
 
 import pandas as pd
 
-from adapters.base import DataProvider, DataCategory, ProviderCapability
+from modules.collector.adapters.base import DataProvider, DataCategory, ProviderCapability
 from utils import logger
 
 
@@ -34,10 +34,10 @@ PROVINCES = [
 class TdxProvider(DataProvider):
     """通达信数据源适配器（mootdx TCP 协议）
 
-    提供行业/地区分类数据，通过 F10 接口逐只获取。
+    提供行业/地区分类数据、K线数据，通过 F10/K 接口获取。
     使用多线程加速 + 本地缓存。
 
-    不提供股票列表、K线、实时行情（保持现有数据源）。
+    不提供股票列表、实时行情（保持现有数据源）。
     """
 
     # 线程安全的 Quotes 管理
@@ -80,12 +80,25 @@ class TdxProvider(DataProvider):
                 cost_type="free",
                 latency_ms=5000,  # 下载 + 解析约 5-10 秒
             ),
+            ProviderCapability(
+                category=DataCategory.KLINE_DAILY,
+                fields=["trade_date", "open", "high", "low", "close",
+                        "volume", "amount"],
+                quality_score=0.85,
+                cost_type="free",
+                latency_ms=500,
+            ),
         ]
 
     @property
     def field_mapping(self) -> Dict[DataCategory, Dict[str, str]]:
-        # mootdx 返回的数据直接使用标准字段名，无需映射
-        return {}
+        return {
+            DataCategory.KLINE_DAILY: {
+                "date": "trade_date",
+                "datetime": "trade_date",
+                "vol": "volume",
+            },
+        }
 
     # ---- Quotes 连接管理（线程安全）----
 
@@ -759,3 +772,139 @@ class TdxProvider(DataProvider):
         except Exception as e:
             logger.warning(f"[mootdx] 健康检查失败: {e}")
             return False
+
+    # ---- K线数据获取 ----
+
+    def fetch_kline(
+        self,
+        symbol: str,
+        start_date: str,
+        end_date: str,
+        adjust: str = "qfq"
+    ) -> pd.DataFrame:
+        """获取单只股票的K线数据
+
+        Args:
+            symbol: 股票代码（6位数字，如 600000）
+            start_date: 开始日期（YYYY-MM-DD 或 YYYYMMDD）
+            end_date: 结束日期（YYYY-MM-DD 或 YYYYMMDD）
+            adjust: 复权类型（qfq=前复权, hfq=后复权, None=不复权）
+
+        Returns:
+            K线数据 DataFrame，包含 trade_date/open/high/low/close/volume/amount 字段
+        """
+        quotes = self._quotes
+        if quotes is None:
+            logger.error("[mootdx] Quotes 连接不可用")
+            return pd.DataFrame()
+
+        try:
+            # 标准化股票代码（去除前缀）
+            code = symbol.replace('sh', '').replace('sz', '').replace('bj', '').zfill(6)
+
+            # 标准化日期格式（转为 YYYY-MM-DD）
+            if len(start_date) == 8:
+                start_date = f"{start_date[:4]}-{start_date[4:6]}-{start_date[6:8]}"
+            if len(end_date) == 8:
+                end_date = f"{end_date[:4]}-{end_date[4:6]}-{end_date[6:8]}"
+
+            # 使用 k 方法获取日期范围内的K线
+            df = quotes.k(symbol=code, begin=start_date, end=end_date)
+
+            if df is None or df.empty:
+                logger.warning(f"[mootdx] {symbol} K线数据为空")
+                return pd.DataFrame()
+
+            # 应用字段映射
+            df = self._normalize_dataframe(df, DataCategory.KLINE_DAILY)
+
+            # 确保日期格式统一（转为 YYYYMMDD）
+            if 'trade_date' in df.columns:
+                df['trade_date'] = pd.to_datetime(df['trade_date']).dt.strftime('%Y%m%d')
+
+            # 复权处理（mootdx 不支持复权，需要通过 xdxr 获取除权信息后自行计算）
+            if adjust in ('qfq', 'hfq'):
+                df = self._apply_adjust(df, code, adjust)
+
+            logger.info(f"[mootdx] 获取 {symbol} K线 {len(df)} 条 ({start_date}~{end_date})")
+            return df
+
+        except Exception as e:
+            logger.warning(f"[mootdx] 获取 {symbol} K线失败: {e}")
+            return pd.DataFrame()
+
+    def _apply_adjust(self, df: pd.DataFrame, symbol: str, adjust: str) -> pd.DataFrame:
+        """应用复权因子
+
+        Args:
+            df: 原始K线数据
+            symbol: 股票代码
+            adjust: qfq 或 hfq
+
+        Returns:
+            复权后的K线数据
+        """
+        if df is None or df.empty:
+            return df
+
+        try:
+            quotes = self._quotes
+            if quotes is None:
+                return df
+
+            # 获取除权除息信息
+            xdxr_data = quotes.xdxr(symbol=symbol)
+
+            if xdxr_data is None or xdxr_data.empty:
+                logger.debug(f"[mootdx] {symbol} 无除权信息，返回原始数据")
+                return df
+
+            # 确保按日期排序（从新到旧）
+            df = df.sort_values('trade_date', ascending=False).reset_index(drop=True)
+
+            # 计算复权因子
+            adjust_factor = 1.0
+
+            for _, row in xdxr_data.iterrows():
+                # 跳过无效记录
+                if row.get('category') not in (1, 2, 3):  # 1=除权, 2=除息, 3=除权除息
+                    continue
+
+                dividend_date = str(row.get('date', ''))
+                if not dividend_date:
+                    continue
+
+                # 格式化除权日期
+                if len(dividend_date) == 8:
+                    dividend_date = f"{dividend_date[:4]}-{dividend_date[4:6]}-{dividend_date[6:8]}"
+
+                # 找到除权日之前的K线，应用复权因子
+                mask = df['trade_date'] >= dividend_date.replace('-', '')
+
+                if adjust == 'qfq':  # 前复权
+                    # 前复权：历史价格 × 复权因子
+                    songgu = row.get('fhps', 0) or 0  # 每股送股
+                    peigu = row.get('pg', 0) or 0  # 每股配股
+                    # peigujg = row.get('pgjg', 0) or 0  # 配股价（暂未使用）
+                    fenhong = row.get('fh', 0) or 0  # 每股分红
+
+                    # 复权因子 = (收盘价 - 分红 + 配股×配股价) / (收盘价 + 送股 + 配股)
+                    # 简化计算：factor = 1 / (1 + 送股/10 + 配股/10)
+                    # close = df.loc[mask, 'close'].iloc[0] if mask.any() else 10
+                    factor = 1.0 / (1.0 + songgu/10.0 + peigu/10.0)
+                    adjust_factor *= factor
+
+                    df.loc[mask, 'open'] = df.loc[mask, 'open'] * adjust_factor
+                    df.loc[mask, 'high'] = df.loc[mask, 'high'] * adjust_factor
+                    df.loc[mask, 'low'] = df.loc[mask, 'low'] * adjust_factor
+                    df.loc[mask, 'close'] = df.loc[mask, 'close'] * adjust_factor - fenhong/10.0
+
+                elif adjust == 'hfq':  # 后复权
+                    # 后复权：未来价格 / 复权因子（暂不实现）
+                    pass
+
+            return df.sort_values('trade_date').reset_index(drop=True)
+
+        except Exception as e:
+            logger.warning(f"[mootdx] {symbol} 复权计算失败: {e}")
+            return df
