@@ -14,7 +14,7 @@ if [ -f "$GH" ]; then
     found=0
     for b in $(git branch -r | grep 'origin/feature/' | sed 's/.*origin\///'); do
       if ! git merge-base --is-ancestor origin/$b origin/master 2>/dev/null; then
-        if git log origin/master..origin/$b --oneline --grep="fixes #$num" 2>/dev/null | grep -q .; then
+        if git log origin/master..origin/$b --oneline --grep="fixes #$num\|refs #$num\|closes #$num" 2>/dev/null | grep -q .; then
           found=1; break
         fi
       fi
@@ -30,7 +30,9 @@ for b in $(git branch -r | grep 'origin/feature/' | sed 's/.*origin\///'); do
   if git merge-base --is-ancestor origin/$b origin/master 2>/dev/null; then
     continue
   fi
-  tag=$(git tag --points-at $(git rev-list origin/master..origin/$b 2>/dev/null) --list "round-*-dev" 2>/dev/null | head -1)
+  # 从分支名提取轮次号，直接查对应 dev tag
+  round_num=$(echo "$b" | sed 's/feature\/\([0-9]*\).*/\1/')
+  tag=$(git tag --list "round-${round_num}-dev" 2>/dev/null | head -1)
   count=$(git rev-list --count origin/master..origin/$b 2>/dev/null || echo 0)
   if [ -n "$tag" ]; then
     echo "OK: $b → $tag" >> "$TMPFILE"
