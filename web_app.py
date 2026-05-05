@@ -150,8 +150,17 @@ class DatabaseConfigRequest(BaseModel):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """应用生命周期管理"""
-    global _index_html_cache
+    global _index_html_cache, task_status
     logger.info("Web应用启动...")
+    # 确保采集状态为初始值（防止重启后僵尸状态）
+    task_status.update({
+        "running": False,
+        "task_type": None,
+        "progress": 0,
+        "total": 0,
+        "stats": None,
+        "error": None
+    })
     # 预加载首页 HTML 到内存缓存
     html_path = Path(__file__).parent / "templates" / "index.html"
     if html_path.exists():
