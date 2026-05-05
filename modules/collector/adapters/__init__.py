@@ -17,14 +17,14 @@
     2. 在 providers.yaml 中添加配置
     3. 重启服务即可生效（零代码改动）
 """
-from adapters.base import (
+from modules.collector.adapters.base import (
     DataProvider,
     DataCategory,
     ProviderCapability,
     CATEGORY_STANDARD_FIELDS,
 )
-from adapters.registry import registry, DataSourceRegistry
-from adapters.loader import loader, ProviderLoader
+from modules.collector.adapters.registry import registry, DataSourceRegistry
+from modules.collector.adapters.loader import loader, ProviderLoader
 from utils import logger
 
 

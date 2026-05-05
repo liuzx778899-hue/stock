@@ -7,7 +7,7 @@ import akshare as ak
 import pandas as pd
 from typing import Dict, Optional, List
 
-from adapters.base import DataProvider, DataCategory, ProviderCapability
+from modules.collector.adapters.base import DataProvider, DataCategory, ProviderCapability
 from common.utils import retry
 
 
@@ -68,7 +68,7 @@ class SinaProvider(DataProvider):
 
         优先使用 stock_zh_a_daily，不存在则降级到 stock_zh_a_hist
         """
-        from services.field_merger import FieldMerger
+        from modules.collector.services.field_merger import FieldMerger
 
         try:
             if hasattr(ak, 'stock_zh_a_daily'):
