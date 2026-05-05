@@ -5,7 +5,7 @@
 
 providers:
   eastmoney:
-    class: adapters.akshare.eastmoney.EastmoneyProvider
+    class: modules.collector.adapters.akshare.eastmoney.EastmoneyProvider
     type: akshare
     enabled: true
     priority: 1
@@ -22,7 +22,7 @@ providers:
         quality_score: 0.3
 
   sina:
-    class: adapters.akshare.sina.SinaProvider
+    class: modules.collector.adapters.akshare.sina.SinaProvider
     type: akshare
     enabled: true
     priority: 2
@@ -37,7 +37,7 @@ providers:
         quality_score: 0.7
 
   tencent:
-    class: adapters.akshare.tencent.TencentProvider
+    class: modules.collector.adapters.akshare.tencent.TencentProvider
     type: akshare
     enabled: true
     priority: 3
@@ -50,7 +50,7 @@ providers:
         quality_score: 0.6
 
   mootdx:
-    class: adapters.mootdx_provider.TdxProvider
+    class: modules.collector.adapters.mootdx_provider.TdxProvider
     type: tcp
     enabled: true
     priority: 4

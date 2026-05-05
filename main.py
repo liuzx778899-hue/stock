@@ -14,9 +14,9 @@ from models import Base
 from utils import logger
 
 # 新架构采集器
-from collectors.stock_basic import StockBasicCollector
-from collectors.stock_daily import StockDailyKlineCollector
-from collectors.realtime_quote import RealtimeQuoteCollector
+from modules.collector.collectors.stock_basic import StockBasicCollector
+from modules.collector.collectors.stock_daily import StockDailyKlineCollector
+from modules.collector.collectors.realtime_quote import RealtimeQuoteCollector
 
 
 class StockDataCollector:

@@ -2,8 +2,8 @@
 from unittest.mock import patch, MagicMock
 import pandas as pd
 import pytest
-from adapters.base import DataCategory
-from services.data_orchestrator import DataOrchestrator
+from modules.collector.adapters.base import DataCategory
+from modules.collector.services.data_orchestrator import DataOrchestrator
 
 
 class MockProgressCallback:

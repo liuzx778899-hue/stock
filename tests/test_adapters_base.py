@@ -1,7 +1,7 @@
 """测试数据源适配器抽象基类"""
 import pytest
-from adapters.base import DataCategory, ProviderCapability, DataProvider
-from adapters import registry
+from modules.collector.adapters.base import DataCategory, ProviderCapability, DataProvider
+from modules.collector.adapters import registry
 
 
 class TestDataCategory:

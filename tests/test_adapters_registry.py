@@ -1,8 +1,8 @@
 """测试数据源注册中心"""
 import pytest
 from typing import List
-from adapters.registry import DataSourceRegistry
-from adapters.base import DataProvider, DataCategory, ProviderCapability
+from modules.collector.adapters.registry import DataSourceRegistry
+from modules.collector.adapters.base import DataProvider, DataCategory, ProviderCapability
 
 
 class MockProvider(DataProvider):
