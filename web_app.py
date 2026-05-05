@@ -1274,6 +1274,19 @@ async def collect_realtime_auto(background_tasks: BackgroundTasks):
 async def websocket_progress(websocket: WebSocket):
     """WebSocket 进度推送"""
     await manager.connect(websocket)
+    # 新客户端连接时发送当前状态，页面刷新后可恢复进度显示 (BUG-143)
+    if task_status["running"]:
+        completed = task_status.get("progress", 0)
+        total = task_status.get("total", 0)
+        percent = int(completed * 100 / total) if total > 0 else 0
+        await websocket.send_json({
+            "type": "progress",
+            "completed": completed,
+            "total": total,
+            "percent": percent,
+            "stats": task_status.get("stats"),
+            "message": f"恢复进度: {completed}/{total} ({percent}%)"
+        })
     try:
         while True:
             data = await websocket.receive_text()

@@ -1396,6 +1396,16 @@
                 document.getElementById('status-running').className = data.running ? 'badge badge-running' : 'badge badge-completed';
                 document.getElementById('status-type').textContent = data.task_type || '-';
 
+                // 刷新页面后恢复进度显示 (BUG-143)
+                if (data.running && data.total > 0) {
+                    let pct = Math.floor(data.progress * 100 / data.total);
+                    document.getElementById('progress-bar').style.width = pct + '%';
+                    document.getElementById('status-progress').textContent = pct + '%';
+                    let lbl = document.getElementById('progress-label');
+                    if (lbl) lbl.textContent = pct + '%';
+                    document.getElementById('status-count').textContent = data.progress || 0;
+                }
+
                 updateButtons();
             } catch (e) {
                 console.error('获取状态失败', e);
