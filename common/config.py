@@ -13,12 +13,12 @@ from pathlib import Path
 # 项目根目录
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-# 尝试加载 .env 文件
+# 尝试加载 .env 文件（override=True 强制覆盖已存在但为空的环境变量）
 try:
     from dotenv import load_dotenv
     env_file = BASE_DIR / ".env"
     if env_file.exists():
-        load_dotenv(env_file)
+        load_dotenv(env_file, override=True)
 except ImportError:
     pass  # python-dotenv 未安装，使用环境变量或默认值
 
