@@ -25,7 +25,7 @@ from modules.collector.adapters.base import (
 )
 from modules.collector.adapters.registry import registry, DataSourceRegistry
 from modules.collector.adapters.loader import loader, ProviderLoader
-from modules.collector.utils import logger
+from utils import logger
 
 
 def init_providers(reload: bool = False) -> int:
