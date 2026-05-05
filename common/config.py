@@ -10,8 +10,8 @@ from typing import List, Optional
 import random
 from pathlib import Path
 
-# 项目根目录
-BASE_DIR = Path(__file__).parent.resolve()
+# 项目根目录（config.py 在 common/ 下，需上溯一级）
+BASE_DIR = Path(__file__).resolve().parent.parent
 
 # 尝试加载 .env 文件
 try:
