@@ -8,6 +8,7 @@ import pandas as pd
 from typing import Dict, Optional, List
 
 from adapters.base import DataProvider, DataCategory, ProviderCapability
+from common.utils import retry
 
 
 class EastmoneyProvider(DataProvider):
@@ -69,6 +70,7 @@ class EastmoneyProvider(DataProvider):
         df = ak.stock_zh_a_spot_em()
         return df
 
+    @retry(max_retries=3, base_delay=5.0, exceptions=(ConnectionError, TimeoutError))
     def fetch_kline(self, symbol: str, start_date: str, end_date: str,
                     adjust: str = "qfq") -> pd.DataFrame:
         """获取日K线数据
