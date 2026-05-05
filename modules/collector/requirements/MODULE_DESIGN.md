@@ -30,13 +30,13 @@ stock/
 │   ├── config.py            #   全局配置
 │   └── db.py                #   数据库连接
 │
-├── adapters/                # 数据源适配器（共享）
 ├── scripts/                 # Agent 任务发现脚本
 ├── .claude/                 # Agent 配置
 │
 ├── modules/
 │   └── {name}/
 │       ├── __init__.py      #   模块说明写在 docstring 里
+│       ├── adapters/        #   数据源适配器（仅本模块用）
 │       ├── services/        #   业务逻辑
 │       ├── web/             #   前端资源
 │       │   ├── templates/
