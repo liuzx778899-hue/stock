@@ -6,7 +6,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.pool import StaticPool
 from sqlalchemy.orm import Session
 
-from collectors.base import BaseCollector
+from modules.collector.collectors.base import BaseCollector
 from models import Base as ModelBase, CollectLog
 
 
@@ -48,7 +48,7 @@ class TestBaseCollector:
         collector.create_table()
         assert True
 
-    @patch('collectors.base.sessionmaker')
+    @patch('modules.collector.collectors.base.sessionmaker')
     def test_save_collect_log(self, mock_sessionmaker, memory_engine):
         """测试保存采集日志"""
         # 创建 mock session
@@ -63,7 +63,7 @@ class TestBaseCollector:
         mock_session.close = MagicMock()
 
         # 使用 patch 替换 CollectLog 构造函数
-        with patch('collectors.base.CollectLog', return_value=mock_log):
+        with patch('modules.collector.collectors.base.CollectLog', return_value=mock_log):
             collector = SimpleCollector(engine=memory_engine)
             log_id = collector._save_collect_log(
                 task_name="测试任务",
@@ -78,7 +78,7 @@ class TestBaseCollector:
             mock_session.add.assert_called_once()
             mock_session.commit.assert_called_once()
 
-    @patch('collectors.base.sessionmaker')
+    @patch('modules.collector.collectors.base.sessionmaker')
     def test_save_collect_log_with_error(self, mock_sessionmaker, memory_engine):
         """测试保存带错误的日志"""
         # 创建 mock session
@@ -93,7 +93,7 @@ class TestBaseCollector:
         mock_session.close = MagicMock()
 
         # 使用 patch 替换 CollectLog 构造函数
-        with patch('collectors.base.CollectLog', return_value=mock_log):
+        with patch('modules.collector.collectors.base.CollectLog', return_value=mock_log):
             collector = SimpleCollector(engine=memory_engine)
             log_id = collector._save_collect_log(
                 task_name="失败任务",
