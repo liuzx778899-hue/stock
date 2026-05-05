@@ -25,10 +25,21 @@ for tag in $(git tag --list "fix-BUG-*"); do
   fi
 done
 
-# C. review-fail → 需要修复后重新提交
+# C. review-fail → 检查是否已有对应的 dev/fix tag（存在即视为已修复）
 for tag in $(git tag --list "round-*-review-fail"); do
   round=$(echo $tag | sed 's/-review-fail$//')
-  echo "$tag → 修复问题后重新打 dev tag" >> "$TMPFILE"
+  # round-NN-review-fail → 检查 round-NN-dev 是否存在
+  if git tag --list "${round}-dev" | grep -q . 2>/dev/null; then
+    continue  # 已有 dev tag，视为已修复
+  fi
+  # round-BUGXXX-review-fail → 检查 fix-BUG-XXX 是否存在
+  bug_id=$(echo "$round" | sed 's/round-//')
+  if echo "$bug_id" | grep -q "^BUG"; then
+    if git tag --list "fix-${bug_id}" | grep -q . 2>/dev/null; then
+      continue  # 已有 fix tag，视为已修复
+    fi
+  fi
+  echo "$tag → 修复问题后重新打 dev/fix tag" >> "$TMPFILE"
 done
 
 TASKS=$(wc -l < "$TMPFILE" 2>/dev/null || echo 0)

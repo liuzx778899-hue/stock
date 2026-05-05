@@ -14,8 +14,20 @@ comm -23 <(git tag --list "fix-BUG-*" | sed 's/fix-BUG-//' | sort -n) <(git tag 
   [ -n "$bug" ] && echo "BUG-$bug" >> "$TMPFILE"
 done
 
-# review-fail 提示
+# review-fail 提示 — 检查是否已有对应的 dev/fix tag（存在即视为已修复）
 for tag in $(git tag --list "round-*-review-fail"); do
+  round=$(echo $tag | sed 's/-review-fail$//')
+  # 已有 dev tag → 已修复，不再提示
+  if git tag --list "${round}-dev" | grep -q . 2>/dev/null; then
+    continue
+  fi
+  # 已有 fix tag → 已修复，不再提示
+  bug_id=$(echo "$round" | sed 's/round-//')
+  if echo "$bug_id" | grep -q "^BUG"; then
+    if git tag --list "fix-${bug_id}" | grep -q . 2>/dev/null; then
+      continue
+    fi
+  fi
   echo "[FAIL] $tag → 等待 bugfixer 修复" >> "$TMPFILE"
 done
 
