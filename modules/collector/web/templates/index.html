@@ -150,6 +150,9 @@
             <a class="nav-item" data-page="logs" onclick="showPage('logs')">
                 <span class="nav-item-icon">📋</span>日志查看
             </a>
+            <a class="nav-item" data-page="agent" onclick="showPage('agent')">
+                <span class="nav-item-icon">🤖</span>Agent调度
+            </a>
         </nav>
     </div>
 
@@ -485,6 +488,25 @@
             </div>
         </div>
 
+        <!-- Agent调度页面 -->
+        <div id="page-agent" class="page">
+            <div class="card">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+                    <h2>🤖 Agent 任务调度器</h2>
+                    <button class="btn btn-primary" onclick="loadAgentTasks()" style="padding: 6px 16px;">🔄 刷新</button>
+                </div>
+                <p style="color: #666; margin-bottom: 16px;">自动检测待处理任务，推荐对应的 Agent 角色</p>
+
+                <div id="agent-tasks-summary" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-bottom: 20px;">
+                    加载中...
+                </div>
+
+                <div id="agent-recommendations">
+                    <!-- 推荐角色卡片 -->
+                </div>
+            </div>
+        </div>
+
         <!-- 数据质量页面 (Q-4) -->
         <div id="page-quality" class="page">
             <div class="card">
@@ -730,6 +752,7 @@
                 loadProviderCapabilities();
             }
             if (pageName === 'settings') loadStats();
+            if (pageName === 'agent') loadAgentTasks();
             if (pageName === 'logs') loadLogsList();
             if (pageName === 'quality') {
                 // 日期选择器默认当天（第三十八轮）
@@ -1214,6 +1237,63 @@
             // 清空日志
             localStorage.removeItem('collector_logs');
             document.getElementById('log-container').innerHTML = '<div class="log-entry" style="color: #888;">等待采集任务...</div>';
+        }
+
+        async function loadAgentTasks() {
+            const summaryEl = document.getElementById('agent-tasks-summary');
+            const recsEl = document.getElementById('agent-recommendations');
+
+            summaryEl.innerHTML = '<p style="text-align: center; padding: 20px;">⏳ 正在检测任务...</p>';
+
+            try {
+                const resp = await fetch('/api/agent/tasks');
+                const data = await resp.json();
+
+                // 渲染汇总
+                let summaryHtml = `<div style="display: flex; justify-content: space-around; text-align: center;">`;
+                summaryHtml += `<div><h3 style="font-size: 32px; margin: 0;">${data.total_pending}</h3><p style="opacity: 0.8;">待处理任务</p></div>`;
+                summaryHtml += `<div><h3 style="font-size: 32px; margin: 0;">${data.recommendations.length}</h3><p style="opacity: 0.8;">推荐角色</p></div>`;
+                summaryHtml += `</div>`;
+                summaryEl.innerHTML = summaryHtml;
+
+                // 渲染推荐角色卡片
+                if (data.recommendations.length === 0) {
+                    recsEl.innerHTML = '<div style="text-align: center; padding: 40px; color: #888;"><h3>✅ 所有任务已完成</h3><p>暂无待处理任务</p></div>';
+                    return;
+                }
+
+                let recsHtml = '';
+                for (const rec of data.recommendations) {
+                    const roleColors = {
+                        'develop2': '#11998e',
+                        'bugfixer': '#ff416c',
+                        'test1': '#4facfe',
+                        'integration': '#a18cd1',
+                        'deploy': '#667eea'
+                    };
+                    const bg = roleColors[rec.role] || '#667eea';
+                    recsHtml += `
+                        <div class="card" style="margin-bottom: 12px; border-left: 4px solid ${bg};">
+                            <div style="display: flex; justify-content: space-between; align-items: center;">
+                                <div>
+                                    <h3 style="margin: 0 0 8px 0;">🤖 ${rec.role}</h3>
+                                    <p style="color: #666; margin: 0;">${rec.reason}</p>
+                                    <div style="margin-top: 8px; font-size: 12px; color: #888;">
+                                        ${rec.tasks.slice(0, 3).map(t => `<span style="background: #f0f0f0; padding: 2px 8px; border-radius: 4px; margin-right: 6px;">${t}</span>`).join('')}
+                                    </div>
+                                </div>
+                                <button class="btn btn-primary" style="background: ${bg}; border: none;">
+                                    启动 →
+                                </button>
+                            </div>
+                        </div>
+                    `;
+                }
+                recsEl.innerHTML = recsHtml;
+
+            } catch (e) {
+                summaryEl.innerHTML = `<p style="text-align: center; color: #ff4d4f;">❌ 加载失败: ${e.message}</p>`;
+            }
         }
 
         function updateButtons() {
