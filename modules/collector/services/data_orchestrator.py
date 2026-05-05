@@ -9,11 +9,11 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import create_engine, text
 
-from adapters.registry import registry
-from adapters.base import DataCategory, DataProvider
-from services.data_validator import DataValidator
-from services.field_merger import FieldMerger
-from services.datasource_service import datasource_service
+from modules.collector.adapters.registry import registry
+from modules.collector.adapters.base import DataCategory, DataProvider
+from modules.collector.services.data_validator import DataValidator
+from modules.collector.services.field_merger import FieldMerger
+from modules.collector.services.datasource_service import datasource_service
 from config import config
 from utils import logger
 

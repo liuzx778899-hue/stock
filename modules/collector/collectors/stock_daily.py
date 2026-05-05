@@ -10,9 +10,9 @@ from typing import Dict, Any, Optional, Callable, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from sqlalchemy.dialects.mysql import insert
 
-from collectors.base import BaseCollector
-from services.data_orchestrator import orchestrator
-from services.field_merger import FieldMerger
+from modules.collector.collectors.base import BaseCollector
+from modules.collector.services.data_orchestrator import orchestrator
+from modules.collector.services.field_merger import FieldMerger
 from models import StockDailyKline, StockBasic
 from config import config
 from utils import logger, chunk_list, TaskStoppedException
