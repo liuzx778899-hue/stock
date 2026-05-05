@@ -25,6 +25,12 @@ for tag in $(git tag --list "fix-BUG-*"); do
   fi
 done
 
+# C. review-fail → 需要修复后重新提交
+for tag in $(git tag --list "round-*-review-fail"); do
+  round=$(echo $tag | sed 's/-review-fail$//')
+  echo "$tag → 修复问题后重新打 dev tag" >> "$TMPFILE"
+done
+
 TASKS=$(wc -l < "$TMPFILE" 2>/dev/null || echo 0)
 TASKS=${TASKS:-0}
 

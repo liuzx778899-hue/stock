@@ -14,6 +14,11 @@ comm -23 <(git tag --list "fix-BUG-*" | sed 's/fix-BUG-//' | sort -n) <(git tag 
   [ -n "$bug" ] && echo "BUG-$bug" >> "$TMPFILE"
 done
 
+# review-fail 提示
+for tag in $(git tag --list "round-*-review-fail"); do
+  echo "[FAIL] $tag → 等待 bugfixer 修复" >> "$TMPFILE"
+done
+
 TASKS=$(wc -l < "$TMPFILE" 2>/dev/null || echo 0)
 TASKS=${TASKS:-0}
 
