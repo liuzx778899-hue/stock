@@ -4,6 +4,16 @@
 
 Git tag 管理任务全生命周期。Agent 之间无直接对话，通过 tag + Issue 传递状态。任务发现由 `bash scripts/check-*.sh` 确定性脚本驱动。
 
+## 公共规则（所有角色）
+
+1. **任务发现** — `bash scripts/check-*.sh`，输出 `>>> 待XX: N 个`，N>0 必须开工
+2. **提交身份** — `git config user.name "角色名"`
+3. **结构化 Tag** — `git tag -a` + JSON 附注
+4. **Issue 引用** — develop 用 `refs #N`，bugfixer 用 `fixes #N`
+5. **建分支** — 先 `git pull origin master`
+6. **合并后清理** — 删远程分支
+7. **推送** — PowerShell: `git push origin --tags --no-verify`
+
 ## 流水线
 
 ```
