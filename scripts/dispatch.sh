@@ -93,7 +93,12 @@ done
 if [ -f "$GH" ]; then
   "$GH" issue list --label enhancement --state open --json number,title --jq '.[] | "\(.number)\t\(.title)"' 2>/dev/null | while IFS=$'\t' read num title; do
     if git log --all --oneline --grep="#$num" 2>/dev/null | grep -q .; then continue; fi
-    echo "{\"role\":\"develop\",\"issue\":$num,\"task\":\"$title\",\"branch\":null,\"reason\":\"新enhancement\"}"
+    # 根据 Issue 编号判断分配给 develop1 还是 develop2
+    # develop2: Provider实现/API端点/前端 (Issue #147, #150 等)
+    case $num in
+      147|150) echo "{\"role\":\"develop2\",\"issue\":$num,\"task\":\"$title\",\"branch\":null,\"reason\":\"新enhancement\"}" ;;
+      *) echo "{\"role\":\"develop\",\"issue\":$num,\"task\":\"$title\",\"branch\":null,\"reason\":\"新enhancement\"}" ;;
+    esac
   done
 fi
 
