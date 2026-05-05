@@ -7,20 +7,15 @@ TMPFILE=$(mktemp)
 
 git fetch origin --tags 2>/dev/null
 
-# A. GitHub enhancement Issues 无对应分支
+# A. GitHub enhancement Issues 无对应提交的
 if [ -f "$GH" ]; then
   "$GH" issue list --label enhancement --state open --json number,title --jq '.[] | "#\(.number) \(.title)"' 2>/dev/null | while read line; do
     num=$(echo "$line" | sed 's/^#\([0-9]*\).*/\1/')
-    found=0
-    for b in $(git branch -r | grep 'origin/feature/' | sed 's/.*origin\///'); do
-      if ! git merge-base --is-ancestor origin/$b origin/master 2>/dev/null; then
-        if git log origin/master..origin/$b --oneline --grep="fixes #$num" 2>/dev/null | grep -q .; then
-          found=1; break
-        fi
-      fi
-    done
-    if [ "$found" -eq 0 ]; then
-      echo "TODO: $line → 建 feature 分支开始开发" >> "$TMPFILE"
+    # 检查所有提交是否引用该 Issue
+    if git log --all --oneline --grep="#$num" 2>/dev/null | grep -q .; then
+      echo "OK: $line -> 已有提交引用" >> "$TMPFILE"
+    else
+      echo "TODO: $line -> 建 feature 分支开始开发" >> "$TMPFILE"
     fi
   done
 fi
@@ -30,14 +25,16 @@ for b in $(git branch -r | grep 'origin/feature/' | sed 's/.*origin\///'); do
   if git merge-base --is-ancestor origin/$b origin/master 2>/dev/null; then
     continue
   fi
-  tag=$(git tag --points-at $(git rev-list origin/master..origin/$b 2>/dev/null) --list "round-*-dev" 2>/dev/null | head -1)
+  # 从分支名提取轮次号，直接查对应 dev tag
+  round_num=$(echo "$b" | sed 's/feature\/\([0-9]*\).*/\1/')
+  tag=$(git tag --list "round-${round_num}-dev" 2>/dev/null | head -1)
   count=$(git rev-list --count origin/master..origin/$b 2>/dev/null || echo 0)
   if [ -n "$tag" ]; then
-    echo "OK: $b → $tag" >> "$TMPFILE"
+    echo "OK: $b -> $tag" >> "$TMPFILE"
   elif [ "$count" -gt 0 ]; then
-    echo "TODO: $b → $count commits 未打 dev tag, checkout 继续开发并打 tag" >> "$TMPFILE"
+    echo "TODO: $b -> $count commits 未打 dev tag, checkout 继续开发并打 tag" >> "$TMPFILE"
   else
-    echo "TODO: $b → 空分支, checkout 开始开发" >> "$TMPFILE"
+    echo "TODO: $b -> 空分支, checkout 开始开发" >> "$TMPFILE"
   fi
 done
 
