@@ -35,8 +35,7 @@ for tag in $(git tag --list "round-*-review-fail"); do
   # round-BUGXXX-review-fail → 检查 fix-BUG-XXX 是否存在
   bug_id=$(echo "$round" | sed 's/round-//')
   if echo "$bug_id" | grep -q "^BUG"; then
-    bug_num=$(echo "$bug_id" | sed 's/^BUG//')
-    if git tag --list "fix-BUG-${bug_num}" | grep -q . 2>/dev/null; then
+    if git tag --list "fix-${bug_id}" | grep -q . 2>/dev/null; then
       continue  # 已有 fix tag，视为已修复
     fi
   fi

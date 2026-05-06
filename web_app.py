@@ -5,6 +5,7 @@ FastAPI + WebSocket 实时进度推送
 import asyncio
 import threading
 import importlib
+import re
 from datetime import datetime, time
 from typing import Any, List, Optional, Dict
 from pathlib import Path
@@ -1677,6 +1678,67 @@ async def get_agent_tasks():
         "recommendations": recommendations,
         "total_pending": sum(len(v) for v in tasks.values())
     }
+
+
+# ==================== GitHub Project 同步 API ====================
+
+@app.get("/api/github/sync-status")
+async def get_github_sync_status():
+    """获取 GitHub Project 同步状态"""
+    import subprocess
+
+    # 检查最近提交是否包含 Issue 编号
+    try:
+        result = subprocess.run(
+            ["git", "log", "-1", "--pretty=%s"],
+            capture_output=True,
+            text=True,
+            cwd=str(Path(__file__).parent)
+        )
+        commit_msg = result.stdout.strip()
+        issue_nums = re.findall(r'#(\d+)', commit_msg)
+
+        return {
+            "last_commit": commit_msg,
+            "linked_issues": issue_nums,
+            "sync_available": len(issue_nums) > 0
+        }
+    except Exception as e:
+        return {
+            "last_commit": "",
+            "linked_issues": [],
+            "sync_available": False,
+            "error": str(e)
+        }
+
+
+@app.post("/api/github/sync")
+async def trigger_github_sync():
+    """触发 GitHub Project 同步"""
+    import subprocess
+
+    script_path = Path(__file__).parent / "scripts" / "sync-project.sh"
+    if not script_path.exists():
+        return {"success": False, "message": "同步脚本不存在"}
+
+    try:
+        result = subprocess.run(
+            ["bash", str(script_path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            cwd=str(Path(__file__).parent)
+        )
+        return {
+            "success": True,
+            "message": "同步完成",
+            "output": result.stdout,
+            "errors": result.stderr
+        }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "message": "同步超时"}
+    except Exception as e:
+        return {"success": False, "message": str(e)}
 
 
 if __name__ == "__main__":
