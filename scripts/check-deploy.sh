@@ -37,7 +37,7 @@ if [ -f "$GH" ]; then
   done
 fi
 
-TASKS=$(grep -c "^round-\|^BUG" "$TMPFILE" 2>/dev/null || true)
+TASKS=$(grep -c "^[0-9]\|^BUG" "$TMPFILE" 2>/dev/null || true)
 TASKS=${TASKS:-0}
 
 if [ "$TASKS" -gt 0 ]; then
