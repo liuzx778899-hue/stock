@@ -52,11 +52,6 @@ class DatabaseConfig:
             from common.db_config_store import load_local
             local_config = load_local()
             if local_config and local_config.get("password"):
-                # 更新其他配置
-                self.host = local_config.get("host", self.host)
-                self.port = local_config.get("port", self.port)
-                self.username = local_config.get("username", self.username)
-                self.database = local_config.get("database", self.database)
                 return local_config["password"]
         except Exception:
             pass
