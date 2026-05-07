@@ -216,6 +216,75 @@ async def get_status():
     return _convert_numpy_types(task_status)
 
 
+# ==================== 数据库配置 API ====================
+
+@app.get("/api/db-config")
+async def get_db_config():
+    """获取数据库连接配置（密码脱敏）"""
+    from common.db_config_store import load_local, DEFAULT_CONFIG
+
+    config = load_local()
+    if config:
+        # 密码脱敏：显示为 ****
+        masked_config = {
+            "host": config.get("host", DEFAULT_CONFIG["host"]),
+            "port": config.get("port", DEFAULT_CONFIG["port"]),
+            "username": config.get("username", DEFAULT_CONFIG["username"]),
+            "database": config.get("database", DEFAULT_CONFIG["database"]),
+            "password": "****" if config.get("password") else "",
+            "has_password": bool(config.get("password")),
+        }
+        return {"success": True, "config": masked_config}
+    else:
+        # 返回默认值
+        return {
+            "success": True,
+            "config": {
+                "host": DEFAULT_CONFIG["host"],
+                "port": DEFAULT_CONFIG["port"],
+                "username": DEFAULT_CONFIG["username"],
+                "database": DEFAULT_CONFIG["database"],
+                "password": "",
+                "has_password": False,
+            }
+        }
+
+
+class DbConfigSaveRequest(BaseModel):
+    host: str = "192.168.2.32"
+    port: int = 2881
+    username: str = "root@hdw"
+    password: str = ""
+    database: str = "astock"
+
+
+@app.post("/api/db-config")
+async def save_db_config(request: DbConfigSaveRequest):
+    """保存数据库连接配置（加密存储到本地文件）"""
+    from common.db_config_store import save_local, load_local
+
+    # 如果密码为空或为 ****，保留旧密码
+    config_to_save = {
+        "host": request.host,
+        "port": request.port,
+        "username": request.username,
+        "database": request.database,
+    }
+
+    if request.password and request.password != "****":
+        # 新密码
+        config_to_save["password"] = request.password
+    else:
+        # 保留旧密码
+        existing = load_local()
+        if existing and existing.get("password"):
+            config_to_save["password"] = existing["password"]
+
+    save_local(config_to_save)
+
+    return {"success": True, "message": "数据库配置已保存"}
+
+
 # ==================== 数据库连接 API ====================
 
 @app.get("/api/db/status")
