@@ -33,6 +33,10 @@ class BaostockProvider(DataProvider):
         """确保 baostock 登录（登录后才能查询）"""
         if not self._logged_in:
             try:
+                # 清除代理环境变量（防止企业代理阻塞 baostock HTTP 请求）
+                import os
+                for var in ['HTTP_PROXY', 'HTTPS_PROXY', 'http_proxy', 'https_proxy']:
+                    os.environ.pop(var, None)
                 lg = bs.login()
                 if lg.error_code == '0':
                     self._logged_in = True
