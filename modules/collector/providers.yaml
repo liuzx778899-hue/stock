@@ -4,11 +4,33 @@
 # 新增数据源只需在此文件添加配置 + 编写适配器类
 
 providers:
+  tushare:
+    class: modules.collector.adapters.tushare_provider.TushareProvider
+    type: http
+    enabled: true
+    priority: 0
+    cost_type: paid
+    description: Tushare Pro 数据源（付费），支持A股全市场含北交所
+    capabilities:
+      kline_daily:
+        quality_score: 0.95
+
+  jqdata:
+    class: modules.collector.adapters.jqdata_provider.JqdataProvider
+    type: http
+    enabled: true
+    priority: 1
+    cost_type: free
+    description: JoinQuant 聚宽数据源（免费），不含北交所
+    capabilities:
+      kline_daily:
+        quality_score: 0.85
+
   eastmoney:
     class: modules.collector.adapters.akshare.eastmoney.EastmoneyProvider
     type: akshare
     enabled: true
-    priority: 1
+    priority: 2
     cost_type: free
     description: 东方财富公开数据接口（AkShare）
     capabilities:
@@ -25,7 +47,7 @@ providers:
     class: modules.collector.adapters.akshare.sina.SinaProvider
     type: akshare
     enabled: true
-    priority: 2
+    priority: 3
     cost_type: free
     description: 新浪财经数据接口（AkShare）
     capabilities:
@@ -40,7 +62,7 @@ providers:
     class: modules.collector.adapters.akshare.tencent.TencentProvider
     type: akshare
     enabled: true
-    priority: 3
+    priority: 4
     cost_type: free
     description: 腾讯财经数据接口（AkShare）
     capabilities:
@@ -53,7 +75,7 @@ providers:
     class: modules.collector.adapters.mootdx_provider.TdxProvider
     type: tcp
     enabled: true
-    priority: 4
+    priority: 5
     cost_type: free
     description: 通达信数据源（mootdx TCP协议），绕过HTTP代理获取行业/地区/K线
     capabilities:
@@ -70,7 +92,7 @@ providers:
     class: modules.collector.adapters.baostock_provider.BaostockProvider
     type: baostock
     enabled: true
-    priority: 5
+    priority: 6
     cost_type: free
     description: 证券宝数据源，免费无需注册，支持A股日K线
     capabilities:
@@ -90,8 +112,10 @@ orchestration:
         required_coverage: 0.7
 
   kline_daily:
-    # K线数据源优先级覆盖
+    # K线数据源优先级覆盖（按优先级排序）
     provider_order:
+      - tushare
+      - jqdata
       - mootdx
       - baostock
       - eastmoney
