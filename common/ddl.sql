@@ -172,3 +172,13 @@ CREATE TABLE IF NOT EXISTS stock_concept (
     INDEX idx_stock_concept_symbol (symbol),
     INDEX idx_stock_concept_concept_id (concept_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='股票-概念关联表';
+
+-- ============================================
+-- 9. 系统配置表（加密存储敏感配置）
+-- ============================================
+CREATE TABLE IF NOT EXISTS system_config (
+    config_key VARCHAR(100) NOT NULL COMMENT '配置键',
+    config_value TEXT NOT NULL COMMENT '配置值（JSON加密存储）',
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (config_key)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='系统配置表（加密存储敏感配置）';

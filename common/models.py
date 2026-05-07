@@ -186,3 +186,15 @@ class StockConcept(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     symbol = Column(String(20), nullable=False, comment='股票代码')
     concept_id = Column(Integer, nullable=False, comment='概念ID')
+
+
+class SystemConfig(Base):
+    """系统配置表（加密存储敏感配置）"""
+    __tablename__ = 'system_config'
+    __table_args__ = (
+        {'comment': '系统配置表（加密存储敏感配置）'}
+    )
+
+    config_key = Column(String(100), primary_key=True, comment='配置键')
+    config_value = Column(Text, nullable=False, comment='配置值（JSON加密存储）')
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')

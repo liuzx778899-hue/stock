@@ -37,24 +37,53 @@ class DatabaseConfig:
 
     def __post_init__(self):
         if not self.password:
-            _pw = os.getenv("DB_PASSWORD")
+            # 密码解析优先级：
+            # 1. 本地加密文件 .db_config.enc（快，无需 DB 连接）
+            # 2. 环境变量 DB_PASSWORD（向后兼容）
+            # 3. .env 文件（向后兼容/bootstrap）
+            _pw = self._resolve_password()
             if _pw:
                 self.password = _pw
-            else:
-                import logging
-                # 检查 .env 是否加载成功但密码为空
-                env_file = BASE_DIR / ".env"
-                if env_file.exists():
-                    with open(env_file, encoding="utf-8") as f:
-                        for line in f:
-                            if line.strip().startswith("DB_PASSWORD="):
-                                val = line.strip().split("=", 1)[1]
-                                if not val:
-                                    logging.warning(".env 中 DB_PASSWORD 为空，请在 .env 中设置数据库密码")
-                                break
-                else:
-                    logging.warning(f".env 文件不存在 ({env_file})，请创建并设置 DB_PASSWORD")
-                self.password = ""
+
+    def _resolve_password(self) -> str:
+        """按优先级解析密码"""
+        # 1. 尝试从本地加密文件读取
+        try:
+            from common.db_config_store import load_local
+            local_config = load_local()
+            if local_config and local_config.get("password"):
+                # 更新其他配置
+                self.host = local_config.get("host", self.host)
+                self.port = local_config.get("port", self.port)
+                self.username = local_config.get("username", self.username)
+                self.database = local_config.get("database", self.database)
+                return local_config["password"]
+        except Exception:
+            pass
+
+        # 2. 环境变量
+        _pw = os.getenv("DB_PASSWORD")
+        if _pw:
+            return _pw
+
+        # 3. .env 文件
+        env_file = BASE_DIR / ".env"
+        if env_file.exists():
+            with open(env_file, encoding="utf-8") as f:
+                for line in f:
+                    if line.strip().startswith("DB_PASSWORD="):
+                        val = line.strip().split("=", 1)[1]
+                        if val:
+                            return val
+                        break
+
+        # 没有找到密码
+        import logging
+        logging.warning("未找到数据库密码，请通过以下方式之一配置："
+                       "1. 运行 python scripts/bootstrap_db_config.py"
+                       "2. 设置环境变量 DB_PASSWORD"
+                       "3. 在 .env 中设置 DB_PASSWORD")
+        return ""
 
     @property
     def connection_url(self) -> str:
