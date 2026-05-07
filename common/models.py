@@ -198,3 +198,21 @@ class SystemConfig(Base):
     config_key = Column(String(100), primary_key=True, comment='配置键')
     config_value = Column(Text, nullable=False, comment='配置值（JSON加密存储）')
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')
+
+
+class QualityCheckRecord(Base):
+    """质量检查结果记录表（按天存储）"""
+    __tablename__ = 'quality_check_record'
+    __table_args__ = (
+        UniqueConstraint('check_date', name='uk_quality_check_date'),
+        Index('idx_quality_check_date', 'check_date'),
+        {'comment': '质量检查结果记录表（按天存储）'}
+    )
+
+    check_date = Column(Date, primary_key=True, comment='检查日期')
+    stock_count = Column(Integer, nullable=False, default=0, comment='检查股票数')
+    kline_covered = Column(Integer, nullable=False, default=0, comment='K线有数据的股票数')
+    kline_missing = Column(Integer, nullable=False, default=0, comment='K线无数据的股票数')
+    report_json = Column(Text, nullable=False, comment='完整报告 JSON')
+    created_at = Column(DateTime, default=datetime.now, comment='创建时间')
+    updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now, comment='更新时间')

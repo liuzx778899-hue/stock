@@ -498,14 +498,18 @@
                     </div>
                 </div>
 
-                <!-- 检查区间 -->
-                <div style="display: flex; gap: 8px; margin-bottom: 16px; align-items: center;">
-                    <label style="font-size: 13px; color: #555;">检查区间:</label>
-                    <input type="date" id="check-start" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="syncQualityRange()">
-                    <span>~</span>
-                    <input type="date" id="check-end" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="syncQualityRange()">
-                    <button class="btn btn-primary" onclick="triggerQualityCheck()">检查区间段</button>
+                <!-- 检查区间：查询按钮紧挨日期，触发检验按钮在行最右 -->
+                <div style="display: flex; gap: 8px; margin-bottom: 16px; align-items: center; justify-content: space-between;">
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <label style="font-size: 13px; color: #555;">检查区间:</label>
+                        <input type="date" id="check-start" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="syncQualityRange()">
+                        <span>~</span>
+                        <input type="date" id="check-end" style="padding: 4px 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 13px;" onchange="syncQualityRange()">
+                        <button class="btn" style="background: #1890ff; color: white; padding: 4px 12px;" onclick="queryQualityRecords()">查询</button>
+                    </div>
+                    <button class="btn btn-primary" onclick="triggerQualityCheckRange()">触发检验任务</button>
                 </div>
+                <div id="quality-records-result" style="margin-bottom: 16px; font-size: 13px; color: #666;"></div>
 
                 <!-- 质量评分卡片 -->
                 <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; margin-bottom: 20px;">
@@ -1211,6 +1215,99 @@
                 const btn = event.target;
                 btn.disabled = false;
                 btn.textContent = '检查区间段';
+            }
+        }
+
+        // #150: 查询质量检查记录（只读数据库）
+        async function queryQualityRecords() {
+            const startInput = document.getElementById('check-start');
+            const endInput = document.getElementById('check-end');
+            const start = startInput ? startInput.value : '';
+            const end = endInput ? endInput.value : '';
+
+            if (!start || !end) {
+                alert('请选择日期区间');
+                return;
+            }
+
+            const resultEl = document.getElementById('quality-records-result');
+            resultEl.innerHTML = '<span style="color: #1890ff;">查询中...</span>';
+
+            try {
+                const resp = await fetch(`/api/quality/records?start_date=${start}&end_date=${end}`);
+                const data = await resp.json();
+
+                if (!data.success) {
+                    resultEl.innerHTML = '<span style="color: #ff4d4f;">查询失败</span>';
+                    return;
+                }
+
+                if (data.records.length === 0) {
+                    resultEl.innerHTML = '<span style="color: #faad14;">该区间无检查记录，请点击「触发检验任务」</span>';
+                    return;
+                }
+
+                // 显示查询结果
+                let html = `<div style="background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 4px; padding: 12px;">
+                    <strong>查询结果:</strong> ${data.records.length} 天有记录`;
+                if (data.missing_dates.length > 0) {
+                    html += `，<span style="color: #faad14;">${data.missing_dates.length} 天无记录</span>`;
+                }
+                html += '</div>';
+
+                // 显示表格
+                html += '<table style="width: 100%; margin-top: 12px; border-collapse: collapse; font-size: 12px;">';
+                html += '<tr style="background: #fafafa;"><th style="padding: 8px; border: 1px solid #eee;">日期</th><th style="padding: 8px; border: 1px solid #eee;">股票数</th><th style="padding: 8px; border: 1px solid #eee;">K线覆盖</th><th style="padding: 8px; border: 1px solid #eee;">K线缺失</th></tr>';
+                data.records.forEach(r => {
+                    html += `<tr><td style="padding: 8px; border: 1px solid #eee;">${r.check_date}</td><td style="padding: 8px; border: 1px solid #eee;">${r.stock_count}</td><td style="padding: 8px; border: 1px solid #eee; color: #52c41a;">${r.kline_covered}</td><td style="padding: 8px; border: 1px solid #eee; color: ${r.kline_missing > 0 ? '#ff4d4f' : '#52c41a'};">${r.kline_missing}</td></tr>`;
+                });
+                html += '</table>';
+
+                resultEl.innerHTML = html;
+
+                // 刷新趋势图
+                loadQualityTrend();
+            } catch (e) {
+                resultEl.innerHTML = '<span style="color: #ff4d4f;">查询失败: ' + e.message + '</span>';
+            }
+        }
+
+        // #150: 触发区间质量检查（执行检查并写入数据库）
+        async function triggerQualityCheckRange() {
+            const startInput = document.getElementById('check-start');
+            const endInput = document.getElementById('check-end');
+            const start = startInput ? startInput.value : '';
+            const end = endInput ? endInput.value : '';
+
+            if (!start || !end) {
+                alert('请选择日期区间');
+                return;
+            }
+
+            const resultEl = document.getElementById('quality-records-result');
+            resultEl.innerHTML = '<span style="color: #1890ff;">检查中...</span>';
+
+            try {
+                const resp = await fetch('/api/quality/check-range', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ start_date: start, end_date: end })
+                });
+                const data = await resp.json();
+
+                if (!data.success) {
+                    resultEl.innerHTML = '<span style="color: #ff4d4f;">检查失败: ' + data.message + '</span>';
+                    return;
+                }
+
+                resultEl.innerHTML = `<div style="background: #f6ffed; border: 1px solid #b7eb8f; border-radius: 4px; padding: 12px;">
+                    <strong>${data.message}</strong>
+                </div>`;
+
+                // 刷新趋势图
+                loadQualityTrend();
+            } catch (e) {
+                resultEl.innerHTML = '<span style="color: #ff4d4f;">检查失败: ' + e.message + '</span>';
             }
         }
 

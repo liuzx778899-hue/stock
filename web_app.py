@@ -691,6 +691,188 @@ async def get_quality_trend(
         session.close()
 
 
+# ==================== 质量检查记录 API (#150) ====================
+
+@app.get("/api/quality/records")
+async def get_quality_records(start_date: str, end_date: str):
+    """查询质量检查记录（只读数据库）
+
+    Args:
+        start_date: 开始日期 YYYY-MM-DD
+        end_date: 结束日期 YYYY-MM-DD
+    """
+    from sqlalchemy.orm import Session
+    from sqlalchemy import create_engine, select
+    from config import config
+    from common.models import QualityCheckRecord
+    from datetime import date
+
+    engine = create_engine(config.database.connection_url)
+    session = Session(bind=engine)
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+
+        records = session.query(QualityCheckRecord).filter(
+            QualityCheckRecord.check_date >= start,
+            QualityCheckRecord.check_date <= end
+        ).order_by(QualityCheckRecord.check_date).all()
+
+        return {
+            "success": True,
+            "records": [
+                {
+                    "check_date": r.check_date.isoformat(),
+                    "stock_count": r.stock_count,
+                    "kline_covered": r.kline_covered,
+                    "kline_missing": r.kline_missing,
+                    "report_json": r.report_json,
+                }
+                for r in records
+            ],
+            "missing_dates": _get_missing_dates(session, start, end)
+        }
+    finally:
+        session.close()
+
+
+def _get_missing_dates(session, start, end) -> list:
+    """获取区间内未检查的日期列表"""
+    from common.models import QualityCheckRecord
+    from datetime import timedelta
+
+    checked = set(
+        r.check_date for r in session.query(QualityCheckRecord.check_date).filter(
+            QualityCheckRecord.check_date >= start,
+            QualityCheckRecord.check_date <= end
+        ).all()
+    )
+
+    missing = []
+    current = start
+    while current <= end:
+        if current not in checked:
+            missing.append(current.isoformat())
+        current += timedelta(days=1)
+
+    return missing
+
+
+@app.post("/api/quality/check-range")
+async def trigger_quality_check_range(start_date: str, end_date: str):
+    """触发区间质量检查（执行检查并写入数据库）
+
+    Args:
+        start_date: 开始日期 YYYY-MM-DD
+        end_date: 结束日期 YYYY-MM-DD
+    """
+    from sqlalchemy.orm import Session
+    from sqlalchemy import create_engine
+    from config import config
+    from common.models import QualityCheckRecord
+    from datetime import date, timedelta
+    import json
+
+    engine = create_engine(config.database.connection_url)
+    session = Session(bind=engine)
+    try:
+        start = date.fromisoformat(start_date)
+        end = date.fromisoformat(end_date)
+
+        # 获取已有记录的日期
+        existing = set(
+            r.check_date for r in session.query(QualityCheckRecord.check_date).filter(
+                QualityCheckRecord.check_date >= start,
+                QualityCheckRecord.check_date <= end
+            ).all()
+        )
+
+        # 遍历每一天，跳过已检查的
+        results = []
+        checked_count = 0
+        skipped_count = 0
+
+        current = start
+        while current <= end:
+            if current in existing:
+                skipped_count += 1
+                current += timedelta(days=1)
+                continue
+
+            # 执行检查
+            report = await _check_single_day(session, current)
+            if report:
+                # 存入数据库
+                record = QualityCheckRecord(
+                    check_date=current,
+                    stock_count=report.get("stock_count", 0),
+                    kline_covered=report.get("kline_covered", 0),
+                    kline_missing=report.get("kline_missing", 0),
+                    report_json=json.dumps(report, ensure_ascii=False)
+                )
+                session.add(record)
+                results.append(report)
+                checked_count += 1
+
+            current += timedelta(days=1)
+
+        session.commit()
+
+        message = f"检查完成：{checked_count} 天新检查，{skipped_count} 天跳过（已有记录）"
+
+        # 广播更新
+        await manager.broadcast({
+            "type": "quality_update",
+            "message": message,
+            "records": results
+        })
+
+        return {
+            "success": True,
+            "message": message,
+            "checked_count": checked_count,
+            "skipped_count": skipped_count,
+            "results": results
+        }
+    except Exception as e:
+        session.rollback()
+        return {"success": False, "message": str(e)}
+    finally:
+        session.close()
+
+
+async def _check_single_day(session, check_date) -> dict:
+    """检查单日数据质量"""
+    from datetime import datetime
+    from sqlalchemy import text
+
+    try:
+        # 检查股票数
+        stock_count = session.execute(text("SELECT COUNT(*) FROM stock_basic")).scalar() or 0
+
+        # 检查 K 线覆盖
+        kline_result = session.execute(text("""
+            SELECT COUNT(DISTINCT ts_code) as covered
+            FROM stock_daily_kline
+            WHERE trade_date = :check_date
+        """), {"check_date": check_date}).fetchone()
+
+        kline_covered = kline_result[0] if kline_result else 0
+        kline_missing = stock_count - kline_covered
+
+        return {
+            "check_date": check_date.isoformat(),
+            "stock_count": stock_count,
+            "kline_covered": kline_covered,
+            "kline_missing": kline_missing,
+            "coverage_rate": round(kline_covered / stock_count * 100, 2) if stock_count > 0 else 0,
+            "check_time": datetime.now().isoformat()
+        }
+    except Exception as e:
+        logger.warning(f"质量检查失败 {check_date}: {e}")
+        return None
+
+
 # ==================== 采集后自动质量检查 (Q-6) ====================
 
 async def trigger_quality_check_after_collect():
