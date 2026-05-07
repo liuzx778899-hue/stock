@@ -97,7 +97,7 @@ stock/
 
 ## 开发工作流
 
-Git tag 驱动 + PM 统一 Issue 分诊 + `bash scripts/check-*.sh` 确定性任务发现。
+Git tag 驱动 + PM 统一 Issue 分诊 + `bash .claude/scripts/check-*.sh` 确定性任务发现。
 
 ```
 develop → review → itest → ui → deploy → 关 Issue

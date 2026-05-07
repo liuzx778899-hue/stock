@@ -84,7 +84,7 @@ fix-requests.md
 pm-questions.md
 deploy-log.md
 devops-report.md
-integration-report.md
+reports/
 migration-changes.md
 mcp-memory-import.md
 datasources.json
