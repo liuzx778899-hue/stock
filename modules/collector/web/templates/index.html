@@ -2796,10 +2796,14 @@
         }
 
         // 初始化
-        // 恢复上次浏览的页面 (BUG-107)
-        const lastPage = localStorage.getItem('currentPage');
-        if (lastPage && document.getElementById('page-' + lastPage)) {
-            showPage(lastPage);
+        // URL 路由：/db-config → 设置页面
+        if (window.location.pathname === '/db-config') {
+            showPage('settings');
+        } else {
+            const lastPage = localStorage.getItem('currentPage');
+            if (lastPage && document.getElementById('page-' + lastPage)) {
+                showPage(lastPage);
+            }
         }
         loadLogs();  // 清空日志显示框
         initWebSocket();
