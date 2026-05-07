@@ -4,8 +4,8 @@
 用于首次配置数据库连接参数，将密码加密存储到本地文件
 
 用法:
-    python scripts/bootstrap_db_config.py
-    python scripts/bootstrap_db_config.py --password YOUR_PASSWORD
+    python common/bootstrap_db_config.py
+    python common/bootstrap_db_config.py --password YOUR_PASSWORD
 """
 import argparse
 import getpass

@@ -80,7 +80,7 @@ class DatabaseConfig:
         # 没有找到密码
         import logging
         logging.warning("未找到数据库密码，请通过以下方式之一配置："
-                       "1. 运行 python scripts/bootstrap_db_config.py"
+                       "1. 运行 python common/bootstrap_db_config.py"
                        "2. 设置环境变量 DB_PASSWORD"
                        "3. 在 .env 中设置 DB_PASSWORD")
         return ""

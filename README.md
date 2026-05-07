@@ -47,7 +47,12 @@ stock/
 ├── common/                 ← 跨模块共享层
 │   ├── models.py           ←   ORM 模型
 │   ├── config.py           ←   全局配置
-│   ├── utils.py            ←   工具函数
+│   ├── crypto.py           ←   加密工具
+│   ├── db_config_store.py  ←   数据库配置存取
+│   ├── bootstrap_db_config.py ←   数据库密码初始化
+│   └── utils.py            ←   工具函数
+│
+├── scripts/                ← 项目脚本
 │   └── ddl.sql             ←   数据库建表脚本
 │
 ├── requirements/           ← 项目设计文档
