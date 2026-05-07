@@ -55,8 +55,8 @@ stock/
 │   ├── 开发规范.md         ←   编码规范
 │   └── collector/          ←   collector 模块需求文档
 │
-├── scripts/                ← Agent 任务发现脚本（check-*.sh）
 ├── docs/                   ← 流程文档 + 工作报告
+├── reports/                ← 测试报告（运行产物，不入库）
 ├── tests/                  ← 单元测试
 │
 ├── web_app.py              ← FastAPI 主入口
