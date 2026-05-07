@@ -208,6 +208,18 @@ async def index():
     return HTMLResponse(content="<h1>Page not found</h1>", status_code=404)
 
 
+@app.get("/db-config", response_class=HTMLResponse)
+async def db_config_page():
+    """数据库配置页面"""
+    global _index_html_cache
+    if _index_html_cache:
+        return HTMLResponse(content=_index_html_cache)
+    html_path = Path(__file__).parent / "modules" / "collector" / "web" / "templates" / "index.html"
+    if html_path.exists():
+        return HTMLResponse(content=html_path.read_text(encoding="utf-8"))
+    return HTMLResponse(content="<h1>Page not found</h1>", status_code=404)
+
+
 # ==================== API 路由 ====================
 
 @app.get("/api/status")
@@ -220,10 +232,16 @@ async def get_status():
 
 @app.get("/api/db-config")
 async def get_db_config():
-    """获取数据库连接配置（密码脱敏）"""
-    from common.db_config_store import load_local, DEFAULT_CONFIG
+    """获取数据库连接配置（密码脱敏，优先DB > 本地文件）"""
+    from common.db_config_store import load_local, load_from_db, DEFAULT_CONFIG
 
-    config = load_local()
+    config = None
+    # 优先从数据库读取
+    if collector and collector.engine:
+        config = load_from_db(collector.engine)
+    # 回退到本地文件
+    if not config:
+        config = load_local()
     if config:
         # 密码脱敏：显示为 ****
         masked_config = {
@@ -260,8 +278,8 @@ class DbConfigSaveRequest(BaseModel):
 
 @app.post("/api/db-config")
 async def save_db_config(request: DbConfigSaveRequest):
-    """保存数据库连接配置（加密存储到本地文件）"""
-    from common.db_config_store import save_local, load_local
+    """保存数据库连接配置（加密存储到本地文件 + system_config 表）"""
+    from common.db_config_store import save_local, save_to_db, load_local
 
     # 如果密码为空或为 ****，保留旧密码
     config_to_save = {
@@ -282,7 +300,17 @@ async def save_db_config(request: DbConfigSaveRequest):
 
     save_local(config_to_save)
 
-    return {"success": True, "message": "数据库配置已保存"}
+    # 同步写入 system_config 表（如果数据库已连接）
+    db_saved = False
+    if collector and collector.engine:
+        try:
+            save_to_db(collector.engine, config_to_save)
+            db_saved = True
+        except Exception as e:
+            logger.warning("保存到 system_config 表失败: %s", e)
+
+    msg = "数据库配置已保存" + ("（本地 + 数据库）" if db_saved else "（仅本地文件）")
+    return {"success": True, "message": msg}
 
 
 # ==================== 数据库连接 API ====================
