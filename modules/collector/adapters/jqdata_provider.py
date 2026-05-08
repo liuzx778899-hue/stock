@@ -27,6 +27,31 @@ except ImportError:
     logger.warning("[jqdata] jqdatasdk 未安装，请执行 pip install jqdatasdk")
 
 
+def _get_credentials_from_db() -> tuple[Optional[str], Optional[str]]:
+    """从 system_config 表读取凭证（优先级高于环境变量）"""
+    try:
+        from sqlalchemy import create_engine, text
+        from common.crypto import decrypt_password
+        import json
+        from config import config
+
+        engine = create_engine(config.database.connection_url)
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT config_value FROM system_config WHERE config_key = 'datasource.jqdata.credentials'")
+            ).fetchone()
+            if row:
+                data = json.loads(row[0])
+                username = data.get('username')
+                password = data.get('password')
+                if password:
+                    password = decrypt_password(password)
+                return username, password
+    except Exception as e:
+        logger.debug(f"[jqdata] 从数据库读取凭证失败: {e}")
+    return None, None
+
+
 class JqdataProvider(DataProvider):
     """JoinQuant 数据源适配器
 
@@ -51,9 +76,12 @@ class JqdataProvider(DataProvider):
             self._username = username
             self._password = password
         else:
-            import os
-            self._username = os.environ.get('JQDATA_USERNAME')
-            self._password = os.environ.get('JQDATA_PASSWORD')
+            # 优先从数据库读取，其次环境变量
+            self._username, self._password = _get_credentials_from_db()
+            if not self._username or not self._password:
+                import os
+                self._username = self._username or os.environ.get('JQDATA_USERNAME')
+                self._password = self._password or os.environ.get('JQDATA_PASSWORD')
 
         self._ensure_login()
 
@@ -63,7 +91,7 @@ class JqdataProvider(DataProvider):
             return
 
         if not self._username or not self._password:
-            logger.warning("[jqdata] 未配置账号密码，请设置 JQDATA_USERNAME 和 JQDATA_PASSWORD 环境变量")
+            logger.warning("[jqdata] 未配置账号密码，请在 Web 界面配置或设置 JQDATA_USERNAME 和 JQDATA_PASSWORD 环境变量")
             return
 
         try:

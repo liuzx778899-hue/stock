@@ -96,6 +96,20 @@
 
         /* K线弹窗样式 */
         .kline-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 1000; justify-content: center; align-items: center; }
+
+        /* 数据源凭证配置弹窗样式 (#160) */
+        .credential-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1001; justify-content: center; align-items: center; }
+        .credential-modal.show { display: flex; }
+        .credential-modal-content { background: white; border-radius: 12px; width: 400px; max-width: 90%; padding: 24px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
+        .credential-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .credential-modal-title { font-size: 18px; font-weight: 600; color: #333; }
+        .credential-modal-close { background: none; border: none; color: #888; font-size: 24px; cursor: pointer; padding: 0; line-height: 1; }
+        .credential-modal-close:hover { color: #333; }
+        .credential-field { margin-bottom: 16px; }
+        .credential-field label { display: block; margin-bottom: 6px; font-weight: 500; color: #555; }
+        .credential-field input { width: 100%; padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .credential-field .hint { font-size: 12px; color: #888; margin-top: 4px; }
+        .credential-actions { display: flex; gap: 12px; margin-top: 20px; }
         .kline-modal.show { display: flex; }
         .kline-modal-content { background: #1a1f36; border-radius: 12px; width: 90%; max-width: 1200px; max-height: 90vh; overflow: hidden; box-shadow: 0 20px 60px rgba(0,0,0,0.5); }
         .kline-modal-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; background: #252b43; color: white; }
@@ -1920,6 +1934,8 @@
                 const container = document.getElementById('datasource-list');
 
                 if (data.sources && data.sources.length > 0) {
+                    // 需要凭证配置的 Provider
+                    const credentialProviders = ['tushare', 'jqdata'];
                     container.innerHTML = data.sources.map((s, index) => `
                         <div class="datasource-item ${s.builtin ? 'builtin' : 'custom'}" data-id="${s.id}">
                             <div style="flex: 1;">
@@ -1939,6 +1955,7 @@
                             </div>
                             <div style="display: flex; gap: 8px; align-items: center;">
                                 ${s.builtin ? `
+                                    ${credentialProviders.includes(s.id) ? `<button class="btn" style="padding: 4px 12px; font-size: 12px; background: #722ed1; color: white;" onclick="openCredentialModal('${s.id}')">配置</button>` : ''}
                                     <label style="display: flex; align-items: center; gap: 4px; font-size: 12px; cursor: pointer;">
                                         <input type="checkbox" ${s.enabled ? 'checked' : ''} onchange="toggleDatasource('${s.id}', this.checked)" style="cursor: pointer;">
                                         ${s.enabled ? '启用' : '禁用'}
@@ -2136,6 +2153,84 @@
                 }
             } catch (e) {
                 alert('重置优先级失败: ' + e.message);
+            }
+        }
+
+        // ==================== 数据源凭证配置 (#160) ====================
+        let currentCredentialProvider = null;
+
+        async function openCredentialModal(providerName) {
+            currentCredentialProvider = providerName;
+            try {
+                const resp = await fetch(`/api/datasource/${providerName}/credentials`);
+                const data = await resp.json();
+
+                if (!data.success) {
+                    alert(data.message);
+                    return;
+                }
+
+                document.getElementById('credential-modal-title').textContent = `配置 ${data.display_name}`;
+
+                // 构建字段表单
+                const fieldsHtml = data.fields.map(field => `
+                    <div class="credential-field">
+                        <label>${field.label}${field.required ? '<span style="color: #e74c3c;">*</span>' : ''}</label>
+                        <input type="${field.type}" id="cred-${field.name}"
+                               value="${data.saved_credentials[field.name] || ''}"
+                               placeholder="${field.required ? '必填' : '可选'}">
+                        ${field.hint ? `<div class="hint">${field.hint}</div>` : ''}
+                    </div>
+                `).join('');
+
+                document.getElementById('credential-fields').innerHTML = fieldsHtml;
+                document.getElementById('credential-result').textContent = '';
+                document.getElementById('credential-modal').classList.add('show');
+            } catch (e) {
+                alert('加载凭证配置失败: ' + e.message);
+            }
+        }
+
+        function closeCredentialModal(event) {
+            if (event && event.target !== document.getElementById('credential-modal')) return;
+            document.getElementById('credential-modal').classList.remove('show');
+            currentCredentialProvider = null;
+        }
+
+        async function saveCredentials() {
+            if (!currentCredentialProvider) return;
+
+            const resultEl = document.getElementById('credential-result');
+            resultEl.textContent = '保存中...';
+            resultEl.style.color = '#888';
+
+            // 收集所有凭证字段值
+            const fieldInputs = document.querySelectorAll('.credential-field input');
+            const credentials = {};
+            fieldInputs.forEach(input => {
+                const fieldName = input.id.replace('cred-', '');
+                credentials[fieldName] = input.value;
+            });
+
+            try {
+                const resp = await fetch(`/api/datasource/${currentCredentialProvider}/credentials`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({credentials})
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    resultEl.textContent = '✓ ' + data.message;
+                    resultEl.style.color = '#52c41a';
+                    setTimeout(() => closeCredentialModal(), 1500);
+                } else {
+                    resultEl.textContent = '✗ ' + data.message;
+                    resultEl.style.color = '#e74c3c';
+                }
+            } catch (e) {
+                resultEl.textContent = '保存失败: ' + e.message;
+                resultEl.style.color = '#e74c3c';
             }
         }
 
@@ -2877,6 +2972,22 @@
                 </div>
                 <div id="kline-modal-chart"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- 数据源凭证配置弹窗 (#160) -->
+    <div id="credential-modal" class="credential-modal" onclick="closeCredentialModal(event)">
+        <div class="credential-modal-content" onclick="event.stopPropagation()">
+            <div class="credential-modal-header">
+                <span class="credential-modal-title" id="credential-modal-title">配置数据源</span>
+                <button class="credential-modal-close" onclick="closeCredentialModal()">&times;</button>
+            </div>
+            <div id="credential-fields"></div>
+            <div class="credential-actions">
+                <button class="btn btn-primary" onclick="saveCredentials()">保存</button>
+                <button class="btn" style="background: #888; color: white;" onclick="closeCredentialModal()">取消</button>
+            </div>
+            <div id="credential-result" style="margin-top: 12px; font-size: 13px;"></div>
         </div>
     </div>
 </body>

@@ -570,6 +570,153 @@ async def toggle_datasource(name: str, request: ToggleRequest):
     return {"success": False, "message": f"数据源 {name} 不存在"}
 
 
+# ==================== 数据源凭证配置 API (#160) ====================
+
+# Provider 凭证字段定义
+PROVIDER_CREDENTIAL_FIELDS = {
+    "tushare": {
+        "display_name": "Tushare Pro",
+        "fields": [
+            {"name": "token", "label": "Token", "type": "password", "required": True,
+             "hint": "注册获取 token → tushare.pro"}
+        ],
+        "env_vars": ["TUSHARE_TOKEN"]
+    },
+    "jqdata": {
+        "display_name": "JoinQuant",
+        "fields": [
+            {"name": "username", "label": "用户名（手机号）", "type": "text", "required": True,
+             "hint": "JoinQuant 账号"},
+            {"name": "password", "label": "密码", "type": "password", "required": True,
+             "hint": "JoinQuant 密码"}
+        ],
+        "env_vars": ["JQDATA_USERNAME", "JQDATA_PASSWORD"]
+    }
+}
+
+
+class CredentialSaveRequest(BaseModel):
+    credentials: Dict[str, str]
+
+
+@app.get("/api/datasource/{provider_name}/credentials")
+async def get_datasource_credentials(provider_name: str):
+    """获取数据源凭证字段定义和已保存凭证（密码类字段回显 ****）"""
+    if provider_name not in PROVIDER_CREDENTIAL_FIELDS:
+        return {"success": False, "message": f"数据源 {provider_name} 不支持凭证配置"}
+
+    field_def = PROVIDER_CREDENTIAL_FIELDS[provider_name]
+    config_key = f"datasource.{provider_name}.credentials"
+
+    # 从 system_config 表读取已保存凭证
+    from sqlalchemy import create_engine, select
+    from config import config as app_config
+    from common.models import SystemConfig
+
+    engine = create_engine(app_config.database.connection_url)
+    saved_credentials = {}
+
+    try:
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT config_value FROM system_config WHERE config_key = :key"),
+                {"key": config_key}
+            ).fetchone()
+
+            if row:
+                import json
+                from common.crypto import decrypt_password
+                data = json.loads(row[0])
+                # 解密并构建返回数据
+                for field in field_def["fields"]:
+                    field_name = field["name"]
+                    if field_name in data:
+                        if field["type"] == "password":
+                            # 密码字段：解密后返回 **** 占位
+                            try:
+                                decrypt_password(data[field_name])
+                                saved_credentials[field_name] = "****"
+                            except:
+                                saved_credentials[field_name] = ""
+                        else:
+                            saved_credentials[field_name] = data[field_name]
+    except Exception as e:
+        logger.warning(f"读取凭证失败: {e}")
+
+    return {
+        "success": True,
+        "provider": provider_name,
+        "display_name": field_def["display_name"],
+        "fields": field_def["fields"],
+        "saved_credentials": saved_credentials
+    }
+
+
+@app.post("/api/datasource/{provider_name}/credentials")
+async def save_datasource_credentials(provider_name: str, request: CredentialSaveRequest):
+    """保存数据源凭证（加密存储）"""
+    if provider_name not in PROVIDER_CREDENTIAL_FIELDS:
+        return {"success": False, "message": f"数据源 {provider_name} 不支持凭证配置"}
+
+    field_def = PROVIDER_CREDENTIAL_FIELDS[provider_name]
+    config_key = f"datasource.{provider_name}.credentials"
+
+    # 加密敏感字段
+    import json
+    from common.crypto import encrypt_password
+
+    encrypted_data = {}
+    for field in field_def["fields"]:
+        field_name = field["name"]
+        value = request.credentials.get(field_name, "")
+        if value and value != "****":
+            # 密码字段加密存储
+            if field["type"] == "password":
+                encrypted_data[field_name] = encrypt_password(value)
+            else:
+                encrypted_data[field_name] = value
+        elif value == "****":
+            # 保留原值（从数据库读取）
+            from sqlalchemy import create_engine
+            from config import config as app_config
+            engine = create_engine(app_config.database.connection_url)
+            try:
+                with engine.connect() as conn:
+                    row = conn.execute(
+                        text("SELECT config_value FROM system_config WHERE config_key = :key"),
+                        {"key": config_key}
+                    ).fetchone()
+                    if row:
+                        old_data = json.loads(row[0])
+                        if field_name in old_data:
+                            encrypted_data[field_name] = old_data[field_name]
+            except Exception as e:
+                logger.warning(f"读取原凭证失败: {e}")
+
+    # 保存到 system_config 表
+    from sqlalchemy import create_engine
+    from config import config as app_config
+
+    engine = create_engine(app_config.database.connection_url)
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text("""
+                    INSERT INTO system_config (config_key, config_value, updated_at)
+                    VALUES (:key, :value, NOW())
+                    ON DUPLICATE KEY UPDATE
+                        config_value = VALUES(config_value),
+                        updated_at = NOW()
+                """),
+                {"key": config_key, "value": json.dumps(encrypted_data, ensure_ascii=False)}
+            )
+        logger.info(f"数据源 {provider_name} 凭证已保存")
+        return {"success": True, "message": f"{field_def['display_name']} 凭证保存成功"}
+    except Exception as e:
+        logger.error(f"保存凭证失败: {e}")
+        return {"success": False, "message": f"保存失败: {str(e)}"}
+
+
 # ==================== Provider 能力声明 API (T7-1) ====================
 
 @app.get("/api/datasource/providers")

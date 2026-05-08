@@ -21,6 +21,28 @@ from modules.collector.adapters.base import DataProvider, DataCategory, Provider
 from utils import logger
 
 
+def _get_credential_from_db(field_name: str) -> Optional[str]:
+    """从 system_config 表读取凭证（优先级高于环境变量）"""
+    try:
+        from sqlalchemy import create_engine, text
+        from common.crypto import decrypt_password
+        import json
+        from config import config
+
+        engine = create_engine(config.database.connection_url)
+        with engine.connect() as conn:
+            row = conn.execute(
+                text("SELECT config_value FROM system_config WHERE config_key = 'datasource.tushare.credentials'")
+            ).fetchone()
+            if row:
+                data = json.loads(row[0])
+                if field_name in data:
+                    return decrypt_password(data[field_name])
+    except Exception as e:
+        logger.debug(f"[tushare] 从数据库读取凭证失败: {e}")
+    return None
+
+
 class TushareProvider(DataProvider):
     """Tushare Pro 数据源适配器
 
@@ -34,13 +56,16 @@ class TushareProvider(DataProvider):
         """初始化 Tushare Provider
 
         Args:
-            token: Tushare Pro API token，如未提供则尝试从环境变量 TUSHARE_TOKEN 读取
+            token: Tushare Pro API token，如未提供则尝试从数据库或环境变量 TUSHARE_TOKEN 读取
         """
         if token:
             self._token = token
         else:
-            import os
-            self._token = os.environ.get('TUSHARE_TOKEN')
+            # 优先从数据库读取，其次环境变量
+            self._token = _get_credential_from_db('token')
+            if not self._token:
+                import os
+                self._token = os.environ.get('TUSHARE_TOKEN')
 
         if self._token:
             try:
@@ -50,7 +75,7 @@ class TushareProvider(DataProvider):
             except Exception as e:
                 logger.error(f"[tushare] 初始化失败: {e}")
         else:
-            logger.warning("[tushare] 未配置 token，请设置 TUSHARE_TOKEN 环境变量")
+            logger.warning("[tushare] 未配置 token，请在 Web 界面配置或设置 TUSHARE_TOKEN 环境变量")
 
     @property
     def provider_name(self) -> str:
