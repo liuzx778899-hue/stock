@@ -93,3 +93,11 @@ reports/
 migration-changes.md
 mcp-memory-import.md
 datasources.json
+
+# QMT 国信PDF文档（不上库）
+requirements/collector/*.pdf
+
+# 需求目录：只上传 .md 方案文档
+requirements/collector/*.py
+requirements/collector/*.csv
+requirements/collector/*.xlsx

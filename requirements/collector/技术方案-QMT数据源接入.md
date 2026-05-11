@@ -8,7 +8,7 @@ PM Agent 输出
 
 ## 背景
 
-QMT（国信iQuant）是券商直连交易所的数据源，API 测试已验证可覆盖量脉平台 64/71 个接口。核心约束：QMT 策略只能在 iQuant GUI 内运行，无法被外部 Python 调用。
+QMT（国信iQuant）是券商直连交易所的数据源，API 测试已验证可覆盖 64 个数据接口。核心约束：QMT 策略只能在 iQuant GUI 内运行，无法被外部 Python 调用。
 
 ## 目标
 
