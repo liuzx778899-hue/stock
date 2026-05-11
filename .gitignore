@@ -93,3 +93,11 @@ reports/
 migration-changes.md
 mcp-memory-import.md
 datasources.json
+
+# QMT 测试/调试脚本（不上库）
+requirements/collector/qmt_*.py
+requirements/collector/gen_checklist_excel.py
+requirements/collector/qmt_vs_liangmai.csv
+
+# QMT 国信PDF文档（不上库）
+requirements/collector/*.pdf
