@@ -27,6 +27,19 @@ class DataCategory(Enum):
     KLINE_DAILY = "kline_daily"
     REALTIME_QUOTE = "realtime_quote"
     CONCEPT = "concept"
+    # QMT 数据源新增类别
+    DAILY_BASIC = "daily_basic"
+    FINANCIAL_INCOME = "financial_income"
+    FINANCIAL_BALANCE = "financial_balance"
+    FINANCIAL_CASHFLOW = "financial_cashflow"
+    FINANCIAL_PER_SHARE = "financial_per_share"
+    SHAREHOLDER_TOP10 = "shareholder_top10"
+    SHAREHOLDER_COUNT = "shareholder_count"
+    ST_STATUS = "st_status"
+    IPO_INFO = "ipo_info"
+    TICK_DATA = "tick_data"
+    LONGHUBANG = "longhubang"
+    REALTIME_DEPTH = "realtime_depth"
 
 
 # 每个数据类别的标准输出字段集（唯一的字段定义来源）
@@ -54,6 +67,53 @@ CATEGORY_STANDARD_FIELDS: Dict[DataCategory, List[str]] = {
     ],
     DataCategory.CONCEPT: [
         "concept_name", "symbol"
+    ],
+    # QMT 数据源新增类别标准字段
+    DataCategory.DAILY_BASIC: [
+        "ts_code", "trade_date", "total_share", "circ_share",
+        "total_mv", "circ_mv", "turnover_rate", "pe", "pb"
+    ],
+    DataCategory.FINANCIAL_INCOME: [
+        "ts_code", "ann_date", "f_ann_date", "end_date",
+        "operating_revenue", "oper_cost", "oper_profit", "net_profit", "basic_eps"
+    ],
+    DataCategory.FINANCIAL_BALANCE: [
+        "ts_code", "ann_date", "end_date",
+        "total_assets", "fix_assets", "total_liabilities", "total_equity"
+    ],
+    DataCategory.FINANCIAL_CASHFLOW: [
+        "ts_code", "ann_date", "end_date",
+        "net_cash_flows_oper_act", "net_cash_flows_inv_act", "net_cash_flows_fin_act"
+    ],
+    DataCategory.FINANCIAL_PER_SHARE: [
+        "ts_code", "ann_date", "end_date",
+        "eps", "bvps", "revenue_per_share", "oper_profit_per_share"
+    ],
+    DataCategory.SHAREHOLDER_TOP10: [
+        "ts_code", "ann_date", "holder_name", "hold_amount",
+        "hold_ratio", "holder_rank", "holder_type"
+    ],
+    DataCategory.SHAREHOLDER_COUNT: [
+        "ts_code", "ann_date", "holder_num"
+    ],
+    DataCategory.ST_STATUS: [
+        "ts_code", "st_type", "is_st", "start_date", "end_date"
+    ],
+    DataCategory.IPO_INFO: [
+        "ts_code", "ipo_date", "issue_price", "issue_amount", "raise_amount"
+    ],
+    DataCategory.TICK_DATA: [
+        "ts_code", "trade_time", "price", "volume", "amount", "trade_type"
+    ],
+    DataCategory.LONGHUBANG: [
+        "ts_code", "trade_date", "direction", "rank",
+        "sales_department", "amount", "net_amount"
+    ],
+    DataCategory.REALTIME_DEPTH: [
+        "symbol", "bid_price1", "bid_vol1", "bid_price2", "bid_vol2",
+        "bid_price3", "bid_vol3", "bid_price4", "bid_vol4", "bid_price5", "bid_vol5",
+        "ask_price1", "ask_vol1", "ask_price2", "ask_vol2",
+        "ask_price3", "ask_vol3", "ask_price4", "ask_vol4", "ask_price5", "ask_vol5"
     ],
 }
 
@@ -181,6 +241,44 @@ class DataProvider(ABC):
 
     def fetch_realtime(self, symbol: Optional[str] = None) -> pd.DataFrame:
         raise NotImplementedError(f"{self.provider_name} 不支持 realtime_quote")
+
+    # ---- QMT 数据源新增方法 ----
+
+    def fetch_daily_basic(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 daily_basic")
+
+    def fetch_financial_income(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 financial_income")
+
+    def fetch_financial_balance(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 financial_balance")
+
+    def fetch_financial_cashflow(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 financial_cashflow")
+
+    def fetch_financial_per_share(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 financial_per_share")
+
+    def fetch_shareholder_top10(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 shareholder_top10")
+
+    def fetch_shareholder_count(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 shareholder_count")
+
+    def fetch_st_status(self, ts_code: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 st_status")
+
+    def fetch_ipo_info(self, ts_code: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 ipo_info")
+
+    def fetch_tick_data(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 tick_data")
+
+    def fetch_longhubang(self, ts_code: str, start_date: str, end_date: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 longhubang")
+
+    def fetch_realtime_depth(self, symbol: str) -> pd.DataFrame:
+        raise NotImplementedError(f"{self.provider_name} 不支持 realtime_depth")
 
     # ---- 工具方法 ----
 

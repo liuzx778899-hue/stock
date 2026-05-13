@@ -4,6 +4,41 @@
 # 新增数据源只需在此文件添加配置 + 编写适配器类
 
 providers:
+  qmt:
+    class: modules.collector.adapters.qmt_provider.QMTProvider
+    type: database
+    enabled: true
+    priority: 0
+    cost_type: free
+    description: QMT 国信iQuant数据源（券商直连），通过数据库桥接获取K线/财务/股东等12类数据
+    capabilities:
+      kline_daily:
+        quality_score: 0.98
+      daily_basic:
+        quality_score: 0.95
+      financial_income:
+        quality_score: 0.95
+      financial_balance:
+        quality_score: 0.95
+      financial_cashflow:
+        quality_score: 0.95
+      financial_per_share:
+        quality_score: 0.95
+      shareholder_top10:
+        quality_score: 0.95
+      shareholder_count:
+        quality_score: 0.90
+      st_status:
+        quality_score: 0.99
+      ipo_info:
+        quality_score: 0.99
+      tick_data:
+        quality_score: 0.95
+      longhubang:
+        quality_score: 0.95
+      realtime_depth:
+        quality_score: 0.98
+
   tushare:
     class: modules.collector.adapters.tushare_provider.TushareProvider
     type: http
@@ -114,6 +149,7 @@ orchestration:
   kline_daily:
     # K线数据源优先级覆盖（按优先级排序）
     provider_order:
+      - qmt
       - tushare
       - jqdata
       - mootdx
@@ -135,3 +171,85 @@ orchestration:
       - amount
       - turnover_rate
       - pct_chg
+
+  # QMT 新增数据类别编排策略
+  daily_basic:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+      - trade_date
+
+  financial_income:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+      - end_date
+
+  financial_balance:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+      - end_date
+
+  financial_cashflow:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+      - end_date
+
+  financial_per_share:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+      - end_date
+
+  shareholder_top10:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+      - ann_date
+
+  shareholder_count:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+      - ann_date
+
+  st_status:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+
+  ipo_info:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+
+  tick_data:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+      - trade_time
+
+  longhubang:
+    provider_order:
+      - qmt
+    required_fields:
+      - ts_code
+      - trade_date
+
+  realtime_depth:
+    provider_order:
+      - qmt
+    required_fields:
+      - symbol
