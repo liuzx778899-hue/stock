@@ -17,6 +17,9 @@ from utils import logger
 from modules.collector.collectors.stock_basic import StockBasicCollector
 from modules.collector.collectors.stock_daily import StockDailyKlineCollector
 from modules.collector.collectors.realtime_quote import RealtimeQuoteCollector
+from modules.collector.collectors.stock_financial import StockFinancialCollector
+from modules.collector.collectors.stock_shareholder import StockShareholderCollector
+from modules.collector.collectors.stock_daily_basic import StockDailyBasicCollector
 
 
 class StockDataCollector:
@@ -35,6 +38,9 @@ class StockDataCollector:
         self.basic_collector = StockBasicCollector(engine=self.engine)
         self.kline_collector = StockDailyKlineCollector(engine=self.engine)
         self.realtime_collector = RealtimeQuoteCollector(engine=self.engine)
+        self.financial_collector = StockFinancialCollector(engine=self.engine)
+        self.shareholder_collector = StockShareholderCollector(engine=self.engine)
+        self.daily_basic_collector = StockDailyBasicCollector(engine=self.engine)
 
     def init_database(self):
         """初始化数据库，创建所有表"""
@@ -152,6 +158,93 @@ class StockDataCollector:
         logger.info(f"实时行情采集完成: {result}")
         return result
 
+    def collect_financial(
+        self,
+        start_date: str = None,
+        end_date: str = None,
+        progress_callback: Optional[Callable] = None,
+        stop_check: Optional[Callable[[], bool]] = None
+    ) -> Dict[str, Any]:
+        """
+        采集财务数据（利润表/资产负债表/现金流量表/每股指标）
+
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+            progress_callback: 进度回调
+            stop_check: 停止检查函数
+
+        Returns:
+            采集结果
+        """
+        logger.info(f"开始采集财务数据...")
+        result = self.financial_collector.collect(
+            start_date=start_date,
+            end_date=end_date,
+            progress_callback=progress_callback,
+            stop_check=stop_check
+        )
+        logger.info(f"财务数据采集完成: {result}")
+        return result
+
+    def collect_shareholders(
+        self,
+        start_date: str = None,
+        end_date: str = None,
+        progress_callback: Optional[Callable] = None,
+        stop_check: Optional[Callable[[], bool]] = None
+    ) -> Dict[str, Any]:
+        """
+        采集股东数据（十大股东/流通股东/股东户数）
+
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+            progress_callback: 进度回调
+            stop_check: 停止检查函数
+
+        Returns:
+            采集结果
+        """
+        logger.info(f"开始采集股东数据...")
+        result = self.shareholder_collector.collect(
+            start_date=start_date,
+            end_date=end_date,
+            progress_callback=progress_callback,
+            stop_check=stop_check
+        )
+        logger.info(f"股东数据采集完成: {result}")
+        return result
+
+    def collect_daily_basic(
+        self,
+        start_date: str = None,
+        end_date: str = None,
+        progress_callback: Optional[Callable] = None,
+        stop_check: Optional[Callable[[], bool]] = None
+    ) -> Dict[str, Any]:
+        """
+        采集每日基础指标（总股本/流通股本/市值/换手率）
+
+        Args:
+            start_date: 开始日期
+            end_date: 结束日期
+            progress_callback: 进度回调
+            stop_check: 停止检查函数
+
+        Returns:
+            采集结果
+        """
+        logger.info(f"开始采集每日基础指标...")
+        result = self.daily_basic_collector.collect(
+            start_date=start_date,
+            end_date=end_date,
+            progress_callback=progress_callback,
+            stop_check=stop_check
+        )
+        logger.info(f"每日基础指标采集完成: {result}")
+        return result
+
     def full_collect(
         self,
         start_date: str,
@@ -197,7 +290,8 @@ def main():
     """命令行入口"""
     parser = argparse.ArgumentParser(description='A股数据采集系统')
     parser.add_argument('command', choices=[
-        'init', 'basic', 'kline', 'incremental', 'realtime', 'full', 'quote'
+        'init', 'basic', 'kline', 'incremental', 'realtime', 'full', 'quote',
+        'financial', 'shareholders', 'daily_basic'
     ], help='执行命令')
     parser.add_argument('--start-date', type=str, help='开始日期（如 20230101）')
     parser.add_argument('--end-date', type=str, help='结束日期（如 20231231）')
@@ -249,6 +343,33 @@ def main():
                 return
             result = collector.collect_realtime_quote(args.symbol)
             print(f"行情数据: {result}")
+
+        elif args.command == 'financial':
+            end_date = args.end_date or datetime.now().strftime('%Y%m%d')
+            start_date = args.start_date or (datetime.now() - timedelta(days=365*3)).strftime('%Y%m%d')
+            result = collector.collect_financial(
+                start_date=start_date,
+                end_date=end_date
+            )
+            print(f"财务数据采集完成: {result}")
+
+        elif args.command == 'shareholders':
+            end_date = args.end_date or datetime.now().strftime('%Y%m%d')
+            start_date = args.start_date or (datetime.now() - timedelta(days=365*3)).strftime('%Y%m%d')
+            result = collector.collect_shareholders(
+                start_date=start_date,
+                end_date=end_date
+            )
+            print(f"股东数据采集完成: {result}")
+
+        elif args.command == 'daily_basic':
+            end_date = args.end_date or datetime.now().strftime('%Y%m%d')
+            start_date = args.start_date or (datetime.now() - timedelta(days=30)).strftime('%Y%m%d')
+            result = collector.collect_daily_basic(
+                start_date=start_date,
+                end_date=end_date
+            )
+            print(f"每日基础指标采集完成: {result}")
 
     except Exception as e:
         logger.error(f"执行失败: {e}")

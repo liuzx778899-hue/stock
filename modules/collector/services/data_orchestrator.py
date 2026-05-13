@@ -343,6 +343,293 @@ class DataOrchestrator:
         logger.error("所有数据源都无法获取概念板块数据")
         return {}
 
+    def collect_financial(
+        self,
+        ts_code: str,
+        start_date: str,
+        end_date: str,
+        report_type: str = "all"
+    ) -> Dict[str, pd.DataFrame]:
+        """采集财务数据
+
+        Args:
+            ts_code: 股票代码（带后缀）
+            start_date: 开始日期
+            end_date: 结束日期
+            report_type: 报表类型 (income/balance/cashflow/per_share/all)
+
+        Returns:
+            {report_type: DataFrame} 财务数据字典
+        """
+        logger.info(f"采集 {ts_code} 财务数据 ({start_date} ~ {end_date})...")
+
+        results = {}
+        report_types = ["income", "balance", "cashflow", "per_share"] if report_type == "all" else [report_type]
+
+        category_map = {
+            "income": DataCategory.FINANCIAL_INCOME,
+            "balance": DataCategory.FINANCIAL_BALANCE,
+            "cashflow": DataCategory.FINANCIAL_CASHFLOW,
+            "per_share": DataCategory.FINANCIAL_PER_SHARE,
+        }
+
+        for rtype in report_types:
+            category = category_map.get(rtype)
+            if not category:
+                continue
+
+            providers = self.get_providers(category)
+            for provider in providers:
+                try:
+                    if rtype == "income":
+                        df = provider.fetch_financial_income(ts_code, start_date, end_date)
+                    elif rtype == "balance":
+                        df = provider.fetch_financial_balance(ts_code, start_date, end_date)
+                    elif rtype == "cashflow":
+                        df = provider.fetch_financial_cashflow(ts_code, start_date, end_date)
+                    elif rtype == "per_share":
+                        df = provider.fetch_financial_per_share(ts_code, start_date, end_date)
+
+                    if df is not None and not df.empty:
+                        df = FieldMerger.normalize_columns(df)
+                        logger.info(f"从 {provider.provider_name} 获取 {rtype} {len(df)} 条")
+                        results[rtype] = df
+                        break
+                except (NotImplementedError, AttributeError):
+                    continue
+                except Exception as e:
+                    logger.warning(f"{provider.provider_name} 获取 {rtype} 失败: {e}")
+                    continue
+
+        return results
+
+    def collect_shareholders(
+        self,
+        ts_code: str,
+        start_date: str,
+        end_date: str,
+        holder_type: str = "all"
+    ) -> Dict[str, pd.DataFrame]:
+        """采集股东数据
+
+        Args:
+            ts_code: 股票代码（带后缀）
+            start_date: 开始日期
+            end_date: 结束日期
+            holder_type: 股东类型 (top10/count/all)
+
+        Returns:
+            {holder_type: DataFrame} 股东数据字典
+        """
+        logger.info(f"采集 {ts_code} 股东数据 ({start_date} ~ {end_date})...")
+
+        results = {}
+        types = ["top10", "count"] if holder_type == "all" else [holder_type]
+
+        for htype in types:
+            category = DataCategory.SHAREHOLDER_TOP10 if htype == "top10" else DataCategory.SHAREHOLDER_COUNT
+            providers = self.get_providers(category)
+
+            for provider in providers:
+                try:
+                    if htype == "top10":
+                        df = provider.fetch_shareholder_top10(ts_code, start_date, end_date)
+                    else:
+                        df = provider.fetch_shareholder_count(ts_code, start_date, end_date)
+
+                    if df is not None and not df.empty:
+                        df = FieldMerger.normalize_columns(df)
+                        logger.info(f"从 {provider.provider_name} 获取 {htype} {len(df)} 条")
+                        results[htype] = df
+                        break
+                except (NotImplementedError, AttributeError):
+                    continue
+                except Exception as e:
+                    logger.warning(f"{provider.provider_name} 获取 {htype} 失败: {e}")
+                    continue
+
+        return results
+
+    def collect_daily_basic(
+        self,
+        ts_code: str,
+        start_date: str,
+        end_date: str
+    ) -> pd.DataFrame:
+        """采集每日基础指标
+
+        Args:
+            ts_code: 股票代码（带后缀）
+            start_date: 开始日期
+            end_date: 结束日期
+
+        Returns:
+            每日基础指标 DataFrame
+        """
+        logger.info(f"采集 {ts_code} 每日基础指标 ({start_date} ~ {end_date})...")
+
+        providers = self.get_providers(DataCategory.DAILY_BASIC)
+
+        for provider in providers:
+            try:
+                df = provider.fetch_daily_basic(ts_code, start_date, end_date)
+                if df is not None and not df.empty:
+                    df = FieldMerger.normalize_columns(df)
+                    logger.info(f"从 {provider.provider_name} 获取 {len(df)} 条每日基础指标")
+                    return df
+            except (NotImplementedError, AttributeError):
+                continue
+            except Exception as e:
+                logger.warning(f"{provider.provider_name} 获取每日基础指标失败: {e}")
+                continue
+
+        logger.error(f"所有数据源都无法获取 {ts_code} 的每日基础指标")
+        return pd.DataFrame()
+
+    def collect_st_status(self, ts_code: str) -> pd.DataFrame:
+        """采集 ST 状态
+
+        Args:
+            ts_code: 股票代码（带后缀）
+
+        Returns:
+            ST 状态 DataFrame
+        """
+        logger.info(f"采集 {ts_code} ST 状态...")
+
+        providers = self.get_providers(DataCategory.ST_STATUS)
+        for provider in providers:
+            try:
+                df = provider.fetch_st_status(ts_code)
+                if df is not None and not df.empty:
+                    logger.info(f"从 {provider.provider_name} 获取 ST 状态")
+                    return df
+            except (NotImplementedError, AttributeError):
+                continue
+            except Exception as e:
+                logger.warning(f"{provider.provider_name} 获取 ST 状态失败: {e}")
+                continue
+
+        return pd.DataFrame()
+
+    def collect_ipo_info(self, ts_code: str) -> pd.DataFrame:
+        """采集 IPO 信息
+
+        Args:
+            ts_code: 股票代码（带后缀）
+
+        Returns:
+            IPO 信息 DataFrame
+        """
+        logger.info(f"采集 {ts_code} IPO 信息...")
+
+        providers = self.get_providers(DataCategory.IPO_INFO)
+        for provider in providers:
+            try:
+                df = provider.fetch_ipo_info(ts_code)
+                if df is not None and not df.empty:
+                    logger.info(f"从 {provider.provider_name} 获取 IPO 信息")
+                    return df
+            except (NotImplementedError, AttributeError):
+                continue
+            except Exception as e:
+                logger.warning(f"{provider.provider_name} 获取 IPO 信息失败: {e}")
+                continue
+
+        return pd.DataFrame()
+
+    def collect_tick_data(
+        self,
+        ts_code: str,
+        start_date: str,
+        end_date: str
+    ) -> pd.DataFrame:
+        """采集 Tick 明细数据
+
+        Args:
+            ts_code: 股票代码（带后缀）
+            start_date: 开始日期
+            end_date: 结束日期
+
+        Returns:
+            Tick 明细 DataFrame
+        """
+        logger.info(f"采集 {ts_code} Tick 数据 ({start_date} ~ {end_date})...")
+
+        providers = self.get_providers(DataCategory.TICK_DATA)
+        for provider in providers:
+            try:
+                df = provider.fetch_tick_data(ts_code, start_date, end_date)
+                if df is not None and not df.empty:
+                    logger.info(f"从 {provider.provider_name} 获取 Tick {len(df)} 条")
+                    return df
+            except (NotImplementedError, AttributeError):
+                continue
+            except Exception as e:
+                logger.warning(f"{provider.provider_name} 获取 Tick 失败: {e}")
+                continue
+
+        return pd.DataFrame()
+
+    def collect_longhubang(
+        self,
+        ts_code: str,
+        start_date: str,
+        end_date: str
+    ) -> pd.DataFrame:
+        """采集龙虎榜数据
+
+        Args:
+            ts_code: 股票代码（带后缀）
+            start_date: 开始日期
+            end_date: 结束日期
+
+        Returns:
+            龙虎榜 DataFrame
+        """
+        logger.info(f"采集 {ts_code} 龙虎榜 ({start_date} ~ {end_date})...")
+
+        providers = self.get_providers(DataCategory.LONGHUBANG)
+        for provider in providers:
+            try:
+                df = provider.fetch_longhubang(ts_code, start_date, end_date)
+                if df is not None and not df.empty:
+                    logger.info(f"从 {provider.provider_name} 获取龙虎榜 {len(df)} 条")
+                    return df
+            except (NotImplementedError, AttributeError):
+                continue
+            except Exception as e:
+                logger.warning(f"{provider.provider_name} 获取龙虎榜失败: {e}")
+                continue
+
+        return pd.DataFrame()
+
+    def collect_realtime_depth(self, symbol: str) -> pd.DataFrame:
+        """采集五档盘口数据
+
+        Args:
+            symbol: 股票代码（6位数字）
+
+        Returns:
+            五档盘口 DataFrame
+        """
+        logger.info(f"采集 {symbol} 五档盘口...")
+
+        providers = self.get_providers(DataCategory.REALTIME_DEPTH)
+        for provider in providers:
+            try:
+                df = provider.fetch_realtime_depth(symbol)
+                if df is not None and not df.empty:
+                    logger.info(f"从 {provider.provider_name} 获取五档盘口")
+                    return df
+            except (NotImplementedError, AttributeError):
+                continue
+            except Exception as e:
+                logger.warning(f"{provider.provider_name} 获取五档盘口失败: {e}")
+                continue
+
+        return pd.DataFrame()
+
     def get_kline(
         self,
         symbol: str,
